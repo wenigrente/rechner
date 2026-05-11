@@ -1,0 +1,12 @@
+{
+  "app_title": "Wenigrente – Rentensimulator",
+  "app_subtitle": "Interaktive Datenanalyse und Visualisierung",
+  "export_session": "Session exportieren",
+  "import_session": "Session importieren",
+  "drag_drop_hint": "ZIP-Datei hier ablegen oder klicken zum Importieren",
+  "tables_section": "Datentabellen",
+  "empty_tables": "Keine Tabellen geladen",
+  "version": "Version",
+  "created": "Erstellt",
+  "updated": "Aktualisiert"
+}

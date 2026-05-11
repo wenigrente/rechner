@@ -1,0 +1,12 @@
+{
+  "app_title": "Wenigrente – Pension Calculator",
+  "app_subtitle": "Interactive data analysis and visualization",
+  "export_session": "Export session",
+  "import_session": "Import session",
+  "drag_drop_hint": "Drop ZIP file here or click to import",
+  "tables_section": "Data tables",
+  "empty_tables": "No tables loaded",
+  "version": "Version",
+  "created": "Created",
+  "updated": "Updated"
+}
