@@ -20,5 +20,12 @@ export default defineConfig({
         main: resolve(__dirname, 'index.html'),
       },
     },
+    // Ensure data files are copied to dist
+    assetsInlineLimit: 0,
+  },
+
+  server: {
+    // During dev, serve data directory
+    middleware: false,
   },
 })
