@@ -1,6 +1,6 @@
 import i18next from '../i18n/i18n';
 
-type PageId = 'home' | 'tables';
+type PageId = 'home' | 'tables' | 'charts' | 'calculator' | 'bescheid';
 
 interface RouterState {
   activePage: PageId;
@@ -32,13 +32,26 @@ export async function renderApp(): Promise<void> {
       module = await import('./pages/home');
     } else if (active === 'tables') {
       module = await import('./pages/tables');
+    } else if (active === 'charts') {
+      module = await import('./pages/charts');
+    } else if (active === 'calculator') {
+      module = await import('./pages/calculator');
+    } else if (active === 'bescheid') {
+      module = await import('./pages/bescheid');
     } else {
       module = await import('./pages/home');
     }
+    
+    if (!module.render || typeof module.render !== 'function') {
+      console.error(`Module for page '${active}' does not export a render function`);
+      content.innerHTML = `<p>Error: Module for page '${active}' does not export a render function</p>`;
+      return;
+    }
+    
     module.render(content);
   } catch (err) {
-    console.error('Error loading page:', err);
-    content.innerHTML = '<p>Error loading page</p>';
+    console.error('Error loading page:', active, err);
+    content.innerHTML = `<p>Error loading page '${active}': ${err instanceof Error ? err.message : String(err)}</p>`;
   }
 }
 
@@ -46,6 +59,9 @@ function getShellHTML(active: PageId): string {
   const navItems = [
     { id: 'home' as PageId, label: i18next.t('nav.home'), icon: '🏠' },
     { id: 'tables' as PageId, label: i18next.t('nav.tables'), icon: '📊' },
+    { id: 'charts' as PageId, label: 'Charts', icon: '📈' },
+    { id: 'calculator' as PageId, label: 'Rechner', icon: '🧮' },
+    { id: 'bescheid' as PageId, label: 'Bescheid', icon: '📋' },
   ];
 
   const navHTML = navItems
