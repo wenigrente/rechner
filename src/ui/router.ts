@@ -1,7 +1,3 @@
-/**
- * Router with navigation sidebar.
- */
-
 import i18next from '../i18n/i18n';
 
 type PageId = 'home' | 'tables';
@@ -12,11 +8,6 @@ interface RouterState {
 
 let routerState: RouterState = {
   activePage: 'home',
-};
-
-const pages: Record<PageId, () => Promise<{ render: (root: HTMLElement) => void }>> = {
-  'home': () => import('./pages/home'),
-  'tables': () => import('./pages/tables'),
 };
 
 export function navigate(pageId: PageId): void {
@@ -35,9 +26,20 @@ export async function renderApp(): Promise<void> {
   const content = document.getElementById('page-content');
   if (!content) return;
 
-  const pageKey = active in pages ? active : 'home';
-  const module = await pages[pageKey as PageId]();
-  module.render(content);
+  try {
+    let module: any;
+    if (active === 'home') {
+      module = await import('./pages/home');
+    } else if (active === 'tables') {
+      module = await import('./pages/tables');
+    } else {
+      module = await import('./pages/home');
+    }
+    module.render(content);
+  } catch (err) {
+    console.error('Error loading page:', err);
+    content.innerHTML = '<p>Error loading page</p>';
+  }
 }
 
 function getShellHTML(active: PageId): string {

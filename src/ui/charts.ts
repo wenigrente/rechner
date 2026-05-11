@@ -1,17 +1,10 @@
-/**
- * ApexCharts wrapper.
- * Mirrors Charts/Linechart.R, Barchart.R, Piechart.R from the R original.
- */
-
 import ApexCharts from 'apexcharts'
-import { DIF_COLS } from '@core/config'
+import { DIF_COLS } from '../core/config'
 
 export interface ChartSeries {
   name: string
   data: Array<{ x: number | string; y: number }>
 }
-
-// ── Line chart ─────────────────────────────────────────────────────────────
 
 export function renderLineChart(
   el:       HTMLElement,
@@ -45,8 +38,6 @@ export function renderLineChart(
   return chart
 }
 
-// ── Bar chart ──────────────────────────────────────────────────────────────
-
 export function renderBarChart(
   el:     HTMLElement,
   labels: string[],
@@ -75,8 +66,6 @@ export function renderBarChart(
   return chart
 }
 
-// ── Pie / donut chart ──────────────────────────────────────────────────────
-
 export function renderPieChart(
   el:     HTMLElement,
   labels: string[],
@@ -98,28 +87,6 @@ export function renderPieChart(
   return chart
 }
 
-// ── Sparkline ──────────────────────────────────────────────────────────────
-
-export function renderSparkline(
-  el:     HTMLElement,
-  values: number[],
-  color:  string = '#005DB5',
-): ApexCharts {
-  const chart = new ApexCharts(el, {
-    chart:  { type: 'line', height: 50, sparkline: { enabled: true },
-              animations: { enabled: false } },
-    series: [{ data: values }],
-    stroke: { width: 2, curve: 'smooth' },
-    colors: [color],
-    tooltip: { fixed: { enabled: false }, x: { show: false } },
-  })
-  chart.render()
-  return chart
-}
-
-// ── Formatting ─────────────────────────────────────────────────────────────
-
-/** Short format: 1,234,567 → "1.23 Mio." – mirrors short_format() in R */
 export function formatNumber(v: number, digits = 2): string {
   const abs = Math.abs(v)
   const sign = v < 0 ? '-' : ''
@@ -135,4 +102,23 @@ export function formatEuro(v: number): string {
 
 export function formatPct(v: number, digits = 1): string {
   return `${(v * 100).toFixed(digits)}%`
+}
+
+export function tableHTML(
+  headers: string[],
+  rows:    string[][],
+  striped: boolean = true,
+): string {
+  const ths = headers.map(h => `<th>${h}</th>`).join('')
+  const trs = rows.map(row =>
+    `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`
+  ).join('')
+  return `
+    <div class="table-wrapper">
+      <table class="tbl${striped ? ' striped' : ''}">
+        <thead><tr>${ths}</tr></thead>
+        <tbody>${trs}</tbody>
+      </table>
+    </div>
+  `
 }
