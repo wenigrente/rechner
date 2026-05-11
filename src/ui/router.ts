@@ -1,6 +1,6 @@
 import i18next from '../i18n/i18n';
 
-type PageId = 'home' | 'tables' | 'charts' | 'calculator' | 'bescheid';
+type PageId = 'home' | 'tables' | 'charts' | 'calculator' | 'bescheid' | 'planung';
 
 interface RouterState {
   activePage: PageId;
@@ -38,6 +38,8 @@ export async function renderApp(): Promise<void> {
       module = await import('./pages/calculator');
     } else if (active === 'bescheid') {
       module = await import('./pages/bescheid');
+    } else if (active === 'planung') {
+      module = await import('./pages/planung');
     } else {
       module = await import('./pages/home');
     }
@@ -62,6 +64,7 @@ function getShellHTML(active: PageId): string {
     { id: 'charts' as PageId, label: 'Charts', icon: '📈' },
     { id: 'calculator' as PageId, label: 'Rechner', icon: '🧮' },
     { id: 'bescheid' as PageId, label: 'Bescheid', icon: '📋' },
+    { id: 'planung' as PageId, label: 'Planung', icon: '🔮' },
   ];
 
   const navHTML = navItems
