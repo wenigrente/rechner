@@ -8,5 +8,9 @@
   "empty_tables": "No tables loaded",
   "version": "Version",
   "created": "Created",
-  "updated": "Updated"
+  "updated": "Updated",
+  "germany_poverty_indicators_name": "German Poverty Indicators",
+  "germany_poverty_indicators_desc": "Different measurement methods for poverty in Germany 2024",
+  "eu_poverty_comparison_name": "EU Poverty Comparison",
+  "eu_poverty_comparison_desc": "At-risk-of-poverty rate by country (Eurostat 2024)"
 }

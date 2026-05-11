@@ -1,0 +1,31 @@
+{
+  "tables": [
+    {
+      "id": "germany_poverty_indicators",
+      "name_key": "germany_poverty_indicators_name",
+      "description_key": "germany_poverty_indicators_desc",
+      "source": "Eurostat, IW Köln",
+      "year": 2024,
+      "columns": [
+        { "name": "indicator", "type": "string" },
+        { "name": "value", "type": "number" },
+        { "name": "unit", "type": "string" },
+        { "name": "source", "type": "string" },
+        { "name": "year", "type": "number" }
+      ]
+    },
+    {
+      "id": "eu_poverty_comparison",
+      "name_key": "eu_poverty_comparison_name",
+      "description_key": "eu_poverty_comparison_desc",
+      "source": "Eurostat",
+      "year": 2024,
+      "columns": [
+        { "name": "rank", "type": "number" },
+        { "name": "country", "type": "string" },
+        { "name": "poverty_rate", "type": "number" },
+        { "name": "year", "type": "number" }
+      ]
+    }
+  ]
+}

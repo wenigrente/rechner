@@ -8,5 +8,9 @@
   "empty_tables": "Keine Tabellen geladen",
   "version": "Version",
   "created": "Erstellt",
-  "updated": "Aktualisiert"
+  "updated": "Aktualisiert",
+  "germany_poverty_indicators_name": "Armutsquoten Deutschland",
+  "germany_poverty_indicators_desc": "Verschiedene Messmethoden für Armut in Deutschland 2024",
+  "eu_poverty_comparison_name": "EU-Vergleich Armutsquoten",
+  "eu_poverty_comparison_desc": "Armutsgefährdungsquote nach Land (Eurostat 2024)"
 }
