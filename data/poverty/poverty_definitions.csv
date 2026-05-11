@@ -1,0 +1,5 @@
+measure,value,unit,description
+kaufkraftbereinigt_eu_standard,9,percent,60% eines gemeinsamen EU-Kaufkraftstandards (IW Köln)
+national_median_60pct,15.5,percent,60% des nationalen Medianeinkommens (Eurostat)
+arope_combined,21.1,percent,Armut ODER Unterbeschäftigung ODER materielle Entbehrung (Eurostat)
+schwelle_single_monat,1378,euro,Armutsgefährdungsschwelle für Singles (2024)

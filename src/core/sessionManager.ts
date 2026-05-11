@@ -8,8 +8,9 @@ export async function exportSessionAsZip(session: Session): Promise<Blob> {
   const manifestYaml = YAML.dump(session.manifest);
   zip.file('manifest.yaml', manifestYaml);
 
+  // Export ALL tables (including reference tables if they have data)
   for (const [, table] of session.tables) {
-    if ((table.type === 'upload' || table.type === 'inline') && table.data) {
+    if (table.data && table.data.length > 0) {
       const csvContent = convertToCSV(table.data);
       zip.file(`${table.id}.csv`, csvContent);
     }
@@ -34,13 +35,10 @@ export async function importSessionFromZip(zipBlob: Blob): Promise<Session> {
 
   for (const tableRef of manifest.tables) {
     if (tableRef.type === 'reference') {
-      // References are resolved from /data/ later
       tables.set(tableRef.id, tableRef);
     } else if (tableRef.type === 'inline') {
-      // Inline data is already in the manifest
       tables.set(tableRef.id, tableRef);
     } else if (tableRef.type === 'upload') {
-      // Upload data is in a CSV file in the ZIP
       const csvFile = zip.file(`${tableRef.id}.csv`);
       if (csvFile) {
         const csvContent = await csvFile.async('string');
@@ -57,6 +55,46 @@ export async function importSessionFromZip(zipBlob: Blob): Promise<Session> {
     manifest,
     tables
   };
+}
+
+/**
+ * Merge imported session into existing session.
+ * Tables with matching IDs are overwritten, new tables are added.
+ */
+export function mergeSession(current: Session, imported: Session): Session {
+  const merged: Session = {
+    manifest: {
+      ...current.manifest,
+      updated_at: new Date().toISOString(),
+      tables: [...current.manifest.tables],
+    },
+    tables: new Map(current.tables),
+  };
+
+  // Merge tables from imported: overwrite/add
+  for (const [id, table] of imported.tables) {
+    if (table.data && table.data.length > 0) {
+      merged.tables.set(id, table);
+      
+      // Update manifest
+      const existingIndex = merged.manifest.tables.findIndex(t => t.id === id);
+      if (existingIndex >= 0) {
+        merged.manifest.tables[existingIndex] = {
+          ...merged.manifest.tables[existingIndex],
+          ...table,
+        };
+      } else {
+        merged.manifest.tables.push({
+          id: table.id,
+          type: table.type,
+          name: table.name,
+          metadata: table.metadata,
+        });
+      }
+    }
+  }
+
+  return merged;
 }
 
 export function convertToCSV(data: Record<string, unknown>[]): string {
@@ -94,7 +132,6 @@ export function parseCSV(csv: string): Record<string, unknown>[] {
     for (let j = 0; j < headers.length; j++) {
       let value: unknown = values[j] || '';
       
-      // Auto-detect number
       if (typeof value === 'string' && value !== '') {
         const num = parseFloat(value);
         if (!isNaN(num) && value === String(num)) {
