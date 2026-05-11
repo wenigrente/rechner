@@ -14,11 +14,6 @@ export function render(root: HTMLElement): void {
         Interaktive Datenanalyse für Rentenniveaus, Armutsgefährdung und
         Altersvorsorgesysteme in Deutschland und der EU.
       </p>
-      <p style="margin-top: 1rem; font-size: 0.9rem; color: #666;">
-        <strong>Erste Schritte:</strong>
-        Gehen Sie zum Reiter "Datentabellen" um Ihre Daten zu importieren oder
-        hochgeladene Sessions zu verwalten.
-      </p>
     </div>
 
     <div class="panel">
@@ -36,6 +31,15 @@ export function render(root: HTMLElement): void {
         <p style="margin: 0; color: #666;">📁 ZIP-Datei hier ablegen oder klicken</p>
         <input id="file-input" type="file" accept=".zip" style="display: none;">
       </div>
+      <div id="status" style="
+        padding: 15px;
+        margin-top: 1rem;
+        background: #e3f2fd;
+        border-radius: 4px;
+        display: none;
+      ">
+        <p id="status-text" style="margin: 0; color: #1565c0;"></p>
+      </div>
     </div>
 
     <div class="panel">
@@ -51,30 +55,56 @@ export function render(root: HTMLElement): void {
 
   const importZone = root.querySelector('#import-zone') as HTMLDivElement;
   const fileInput = root.querySelector('#file-input') as HTMLInputElement;
+  const statusEl = root.querySelector('#status') as HTMLDivElement;
+  const statusText = root.querySelector('#status-text') as HTMLParagraphElement;
 
   if (!importZone || !fileInput) return;
 
+  function handleFile(file: File): void {
+    if (!statusEl || !statusText) return;
+    statusText.textContent = '📥 Importiere...';
+    statusEl.style.display = 'block';
+    statusEl.style.background = '#e3f2fd';
+    statusEl.style.color = '#1565c0';
+
+    window.dispatchEvent(new CustomEvent('session-import', { detail: { file } }));
+
+    setTimeout(() => {
+      statusText.textContent = '✅ Session importiert!';
+      statusEl.style.background = '#e8f5e9';
+      statusEl.style.color = '#2e7d32';
+    }, 500);
+  }
+
   importZone.addEventListener('click', () => fileInput.click());
+
   importZone.addEventListener('dragover', (e) => {
     e.preventDefault();
     importZone.style.background = '#e8f5e9';
+    importZone.style.borderColor = '#4caf50';
   });
+
   importZone.addEventListener('dragleave', () => {
     importZone.style.background = '#f9f9f9';
+    importZone.style.borderColor = '#ccc';
   });
+
   importZone.addEventListener('drop', (e) => {
     e.preventDefault();
     importZone.style.background = '#f9f9f9';
+    importZone.style.borderColor = '#ccc';
     const file = e.dataTransfer?.files[0];
-    if (file) {
-      window.dispatchEvent(new CustomEvent('session-import', { detail: { file } }));
+    if (file && file.name.endsWith('.zip')) {
+      handleFile(file);
+    } else {
+      alert('Bitte eine .zip-Datei ablegen');
     }
   });
 
   fileInput.addEventListener('change', (e) => {
     const file = (e.target as HTMLInputElement).files?.[0];
     if (file) {
-      window.dispatchEvent(new CustomEvent('session-import', { detail: { file } }));
+      handleFile(file);
     }
   });
 }

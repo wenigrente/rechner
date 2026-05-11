@@ -1,6 +1,6 @@
 import './i18n/i18n';
 import './ui/styles.css';
-import { initRouter } from './ui/router';
+import { initRouter, navigate } from './ui/router';
 import { importSessionFromZip, exportSessionAsZip } from './core/sessionManager';
 
 declare global {
@@ -14,13 +14,13 @@ if (!globalThis.__session) {
 window.addEventListener('session-import', async (event: any) => {
   const { file } = event.detail;
   try {
+    console.log('Importing session from file:', file.name);
     const session = await importSessionFromZip(file);
+    console.log('Session imported:', session);
     globalThis.__session.current = session;
-    window.location.href = '#/tables';
-    // Re-render
-    const { renderApp } = await import('./ui/router');
-    setTimeout(() => renderApp(), 100);
+    navigate('tables');
   } catch (error) {
+    console.error('Error importing session:', error);
     alert('Error importing session: ' + error);
   }
 });
@@ -40,6 +40,7 @@ window.addEventListener('session-export', async () => {
     a.click();
     URL.revokeObjectURL(url);
   } catch (error) {
+    console.error('Error exporting session:', error);
     alert('Error exporting session: ' + error);
   }
 });
