@@ -87,7 +87,17 @@ export function parseCSV(csv: string): Record<string, unknown>[] {
     const row: Record<string, unknown> = {};
 
     for (let j = 0; j < headers.length; j++) {
-      row[headers[j]] = values[j] || '';
+      let value: unknown = values[j] || '';
+      
+      // Auto-detect number
+      if (typeof value === 'string' && value !== '') {
+        const num = parseFloat(value);
+        if (!isNaN(num) && value === String(num)) {
+          value = num;
+        }
+      }
+      
+      row[headers[j]] = value;
     }
 
     data.push(row);
