@@ -1,21 +1,29 @@
-const STORAGE_KEY = 'calculator-state';
+const STORAGE_KEY = 'rentenniveau-rechner-v4';
 
 function loadState(): Record<string, number> {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
-      return JSON.parse(saved);
+      const parsed = JSON.parse(saved);
+      return {
+        baseLvl: parsed.baseLvl ?? 1500,
+        gamma: parsed.gamma ?? 0.70,
+        kappa: parsed.kappa ?? 0.10,
+        beta: parsed.beta ?? 0.15,
+        pi: parsed.pi ?? 0.20,
+        medianIncome: parsed.medianIncome ?? 1500,
+      };
     }
   } catch (e) {
-    console.warn('Failed to load calculator state:', e);
+    console.warn('Failed to load state:', e);
   }
   return {
-    baseLevel: 1000,
-    gamma: 70,
-    alpha: 60,
-    kappa: 10,
-    beta: 15,
-    pi: 20,
+    baseLvl: 1500,
+    gamma: 0.70,
+    kappa: 0.10,
+    beta: 0.15,
+    pi: 0.20,
+    medianIncome: 1500,
   };
 }
 
@@ -23,7 +31,7 @@ function saveState(state: Record<string, number>): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (e) {
-    console.warn('Failed to save calculator state:', e);
+    console.warn('Failed to save state:', e);
   }
 }
 
@@ -51,16 +59,16 @@ export function render(root: HTMLElement): void {
                 font-weight: 500;
               ">🔄 Zurücksetzen</button>
             </div>
-            
-            <!-- Base pension level -->
-            <div style="margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 2px solid #eee;">
+
+            <!-- Durchschnittsrentenniveau (RN) -->
+            <div style="margin-bottom: 1.5rem;">
               <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #333;">
                 💶 Mittleres Rentenniveau
               </label>
-              <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <span style="font-weight: 600;">€</span>
-                <input type="number" id="base-level" value="1000" min="500" max="5000" step="100"
+              <div style="display: flex; gap: 0.5rem;">
+                <input type="number" id="base-lvl" value="1500" min="500" step="50"
                   style="flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem;">
+                <span style="padding: 8px 12px; color: #999; font-weight: 600;">€</span>
               </div>
               <p style="font-size: 0.85rem; color: #999; margin: 0.5rem 0 0 0;">
                 Durchschnittliches Renteneinkommen als Basis (2024: ca. 1.000€ für Einzelperson)
@@ -72,43 +80,36 @@ export function render(root: HTMLElement): void {
               <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #333;">
                 γ (Gamma) — Leistungsquote der Umlagerente
               </label>
-              <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <input type="range" id="gamma" min="20" max="100" value="70" step="1"
-                  style="flex: 1; cursor: pointer;">
-                <span id="gamma-display" style="min-width: 70px; text-align: right; font-weight: bold; color: #2196f3;">70%</span>
-              </div>
+              <input type="number" id="gamma" value="0.70" min="0" step="0.01"
+                style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem;">
               <p style="font-size: 0.85rem; color: #999; margin: 0.5rem 0 0 0;">
                 Wie viel % vom Eingezahlten bekommt er zurück? (2024: ~70%, 2040: ~50%)
               </p>
             </div>
 
-            <!-- Alpha -->
-            <div style="margin-bottom: 1.5rem;">
-              <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #333;">
-                α (Alpha) — Anteil Umlagerente (Gesetzliche Rente)
-              </label>
-              <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <input type="range" id="alpha" min="0" max="100" value="60" 
-                  style="flex: 1; cursor: pointer;">
-                <span id="alpha-display" style="min-width: 50px; text-align: right; font-weight: bold; color: #2196f3;">60%</span>
-              </div>
-              <p style="font-size: 0.85rem; color: #999; margin: 0.5rem 0 0 0;">
-                Wie viel des Renteneinkommens kommt aus Umlageverfahren?
-              </p>
-            </div>
 
             <!-- Kappa -->
             <div style="margin-bottom: 1.5rem;">
               <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #333;">
                 κ (Kappa) — Kapitaldeckung (Generationenkapital)
               </label>
-              <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <input type="range" id="kappa" min="0" max="50" value="10" 
-                  style="flex: 1; cursor: pointer;">
-                <span id="kappa-display" style="min-width: 50px; text-align: right; font-weight: bold; color: #9c27b0;">10%</span>
-              </div>
+              <input type="number" id="kappa" value="0.10" min="0" step="0.01"
+                style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem;">
               <p style="font-size: 0.85rem; color: #999; margin: 0.5rem 0 0 0;">
                 Staatliche Kapitaldeckung zur Stützung der Umlagerente
+              </p>
+            </div>
+            
+            <!-- Alpha (calculated, info only) -->
+            <div style="margin-bottom: 1.5rem; padding: 1rem; background: #f0f0f0; border-radius: 4px; border-left: 4px solid #1e3c72;">
+              <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #333;">
+                α (Alpha) — Anteil Umlagerente (berechnet)
+              </label>
+              <div id="alpha-display" style="font-size: 1.3rem; font-weight: bold; color: #1e3c72;">
+                87.5%
+              </div>
+              <p style="font-size: 0.85rem; color: #999; margin: 0.5rem 0 0 0;">
+                Wie viel des Renteneinkommens kommt aus Umlageverfahren? (α = γ / (γ + κ))
               </p>
             </div>
 
@@ -117,11 +118,8 @@ export function render(root: HTMLElement): void {
               <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #333;">
                 β (Beta) — Betriebliche Altersvorsorge
               </label>
-              <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <input type="range" id="beta" min="0" max="50" value="15" 
-                  style="flex: 1; cursor: pointer;">
-                <span id="beta-display" style="min-width: 50px; text-align: right; font-weight: bold; color: #4caf50;">15%</span>
-              </div>
+              <input type="number" id="beta" value="0.15" min="0" step="0.01"
+                style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem;">
               <p style="font-size: 0.85rem; color: #999; margin: 0.5rem 0 0 0;">
                 Firmenrente, Pensionsrückstellungen
               </p>
@@ -132,13 +130,25 @@ export function render(root: HTMLElement): void {
               <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #333;">
                 π (Pi) — Privates Vermögen
               </label>
-              <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <input type="range" id="pi" min="0" max="50" value="20" 
-                  style="flex: 1; cursor: pointer;">
-                <span id="pi-display" style="min-width: 50px; text-align: right; font-weight: bold; color: #ff9800;">20%</span>
-              </div>
+              <input type="number" id="pi" value="0.20" min="0" step="0.01"
+                style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem;">
               <p style="font-size: 0.85rem; color: #999; margin: 0.5rem 0 0 0;">
                 Ersparnisse, Immobilien, Kapitalerträge
+              </p>
+            </div>
+
+            <!-- Median Income -->
+            <div style="margin-bottom: 1.5rem;">
+              <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #333;">
+                📊 Rentenmedian (Vergleichswert)
+              </label>
+              <div style="display: flex; gap: 0.5rem;">
+                <input type="number" id="median-income" value="1500" min="500" step="50"
+                  style="flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem;">
+                <span style="padding: 8px 12px; color: #999; font-weight: 600;">€</span>
+              </div>
+              <p style="font-size: 0.85rem; color: #999; margin: 0.5rem 0 0 0;">
+                Durchschnittliche Rente in Deutschland zum Vergleich
               </p>
             </div>
           </div>
@@ -146,35 +156,33 @@ export function render(root: HTMLElement): void {
 
         <!-- Results -->
         <div>
-          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 2rem; border-radius: 8px; color: white;">
+          <div style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); padding: 2rem; border-radius: 8px; color: white;">
             <h3 style="margin: 0 0 1.5rem 0;">Ergebnis</h3>
-            
-            <!-- Main result: Monthly pension -->
+
+            <!-- Monthly Income -->
             <div style="background: rgba(255,255,255,0.15); padding: 1.5rem; border-radius: 6px; margin-bottom: 1.5rem;">
               <p style="margin: 0 0 0.5rem 0; font-size: 0.9rem; opacity: 0.9;">Monatliches Renteneinkommen</p>
-              <p id="monthly-pension" style="margin: 0; font-size: 2.5rem; font-weight: bold;">1.500€</p>
-              <p id="pension-status" style="margin: 0.5rem 0 0 0; font-size: 0.85rem; opacity: 0.8;">Normal</p>
+              <p id="monthly-income" style="margin: 0; font-size: 2.5rem; font-weight: bold;">1.575€</p>
+              <p id="median-comparison" style="margin: 0.5rem 0 0 0; font-size: 0.85rem; opacity: 0.9;">
+                +5.0% über Median (1.500€)
+              </p>
             </div>
 
-            <!-- Breakdown -->
+            <!-- Visualization -->
             <div style="background: rgba(255,255,255,0.1); padding: 1.5rem; border-radius: 6px; margin-bottom: 1.5rem;">
-              <h4 style="margin: 0 0 1rem 0; font-size: 0.95rem;">Zusammensetzung</h4>
-              <div id="breakdown" style="font-size: 0.9rem; line-height: 2;">
-                <!-- Will be filled by JavaScript -->
+              <h4 style="margin: 0 0 1rem 0;">Zusammensetzung</h4>
+              <div id="bar-chart" style="display: flex; height: 40px; border-radius: 4px; overflow: hidden; margin-bottom: 1rem;">
+                <!-- Bars will be inserted here -->
+              </div>
+              <div id="breakdown" style="font-size: 0.85rem; line-height: 2;">
+                <!-- Breakdown items -->
               </div>
             </div>
 
-            <!-- Multiplier -->
-            <div style="background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 6px; margin-bottom: 1.5rem;">
-              <p style="margin: 0 0 0.5rem 0; font-size: 0.85rem; opacity: 0.9;">Faktor zum Basiseinkommen</p>
-              <p id="factor" style="margin: 0; font-size: 1.8rem; font-weight: bold;">1.5x</p>
-            </div>
-
-            <!-- Status -->
-            <div id="status-box" style="background: rgba(76, 175, 80, 0.2); padding: 1rem; border-radius: 6px; border-left: 4px solid #4caf50;">
-              <p style="margin: 0; font-size: 0.9rem; font-weight: 600;">
-                ✅ Gutes Rentenniveau (1.0x - 1.9x)
-              </p>
+            <!-- Staatlicher Anteil -->
+            <div style="background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 6px;">
+              <p style="margin: 0 0 0.5rem 0; font-size: 0.85rem; opacity: 0.9;">Staatlicher Anteil (γ + κ)</p>
+              <p id="staatlich" style="margin: 0; font-size: 1.5rem; font-weight: bold;">1.200€ (76.2%)</p>
             </div>
           </div>
         </div>
@@ -182,25 +190,12 @@ export function render(root: HTMLElement): void {
 
       <!-- Info -->
       <div style="margin-top: 2rem; background: #f5f5f5; padding: 2rem; border-radius: 8px;">
-        <h3 style="margin: 0 0 1rem 0; color: #333;">Wie funktioniert der Rechner?</h3>
-        <p style="margin: 0 0 1rem 0; color: #666; line-height: 1.6;">
-          <strong>Formel:</strong> Renteneinkommen = Basislevel × Faktor
+        <h3 style="margin: 0 0 1rem 0; color: #333;">Formel</h3>
+        <p style="margin: 0 0 1rem 0; color: #666; line-height: 1.6; font-family: monospace; font-size: 1.05rem;">
+          <strong>Renteneinkommen = RN × [α×γ + (1-α)×κ + β + π]</strong>
         </p>
-        <p style="margin: 0 0 1rem 0; color: #666; line-height: 1.6;">
-          <strong>Faktor = (α × γ) + ((1 - α) × κ) + β + π</strong>
-        </p>
-        <ul style="margin: 0; color: #666; line-height: 1.8; padding-left: 1.5rem;">
-          <li><strong>α × γ:</strong> Umlagerente mit Leistungsquote (z.B. 60% × 70% = 42%)</li>
-          <li><strong>(1 - α) × κ:</strong> Staatliche Kapitaldeckung (z.B. 40% × 10% = 4%)</li>
-          <li><strong>β:</strong> Betriebliche AV zusätzlich (z.B. +15%)</li>
-          <li><strong>π:</strong> Privates Vermögen zusätzlich (z.B. +20%)</li>
-        </ul>
-        <p style="margin: 1.5rem 0 0 0; color: #666; line-height: 1.6;">
-          <strong>Bewertung:</strong> 
-          <span style="color: #4caf50;">1.0-1.9x = Gut</span> | 
-          <span style="color: #ff9800;">2.0-2.9x = Sehr gut</span> | 
-          <span style="color: #2196f3;">3.0x+ = Exzellent</span> | 
-          <span style="color: #f44336;">&lt;1.0x = Kritisch</span>
+        <p style="margin: 0; color: #999; font-size: 0.9rem;">
+          mit: α = γ / (γ + κ) | RN = Durchschnittsrentenniveau | γ = Umlage | κ = Kapitaldeckung | β = Betriebliche AV | π = Privates Vermögen
         </p>
       </div>
     </div>
@@ -212,127 +207,129 @@ export function render(root: HTMLElement): void {
 function setupCalculator(): void {
   const state = loadState();
 
-  const baseLevelInput = document.getElementById('base-level') as HTMLInputElement;
+  const baseLvlInput = document.getElementById('base-lvl') as HTMLInputElement;
   const gammaInput = document.getElementById('gamma') as HTMLInputElement;
-  const alphaInput = document.getElementById('alpha') as HTMLInputElement;
   const kappaInput = document.getElementById('kappa') as HTMLInputElement;
   const betaInput = document.getElementById('beta') as HTMLInputElement;
   const piInput = document.getElementById('pi') as HTMLInputElement;
+  const medianIncomeInput = document.getElementById('median-income') as HTMLInputElement;
   const resetBtn = document.getElementById('btn-reset') as HTMLButtonElement;
 
-  // Set initial values from storage
-  baseLevelInput.value = state.baseLevel.toString();
-  gammaInput.value = state.gamma.toString();
-  alphaInput.value = state.alpha.toString();
-  kappaInput.value = state.kappa.toString();
-  betaInput.value = state.beta.toString();
-  piInput.value = state.pi.toString();
+  baseLvlInput.value = state.baseLvl.toString();
+  gammaInput.value = state.gamma.toFixed(2);
+  kappaInput.value = state.kappa.toFixed(2);
+  betaInput.value = state.beta.toFixed(2);
+  piInput.value = state.pi.toFixed(2);
+  medianIncomeInput.value = state.medianIncome.toString();
 
-  const gammaDisplay = document.getElementById('gamma-display')!;
   const alphaDisplay = document.getElementById('alpha-display')!;
-  const kappaDisplay = document.getElementById('kappa-display')!;
-  const betaDisplay = document.getElementById('beta-display')!;
-  const piDisplay = document.getElementById('pi-display')!;
-
-  const monthlyPension = document.getElementById('monthly-pension')!;
-  const pensionStatus = document.getElementById('pension-status')!;
-  const breakdown = document.getElementById('breakdown')!;
-  const factorDisplay = document.getElementById('factor')!;
-  const statusBox = document.getElementById('status-box')!;
+  const monthlyIncomeDisplay = document.getElementById('monthly-income')!;
+  const medianComparisonDisplay = document.getElementById('median-comparison')!;
+  const barChartDisplay = document.getElementById('bar-chart')!;
+  const breakdownDisplay = document.getElementById('breakdown')!;
+  const staatlichDisplay = document.getElementById('staatlich')!;
 
   function updateDisplay(): void {
-    const baseLevel = parseFloat(baseLevelInput.value) || 1000;
-    const gamma = parseFloat(gammaInput.value);
-    const alpha = parseFloat(alphaInput.value);
-    const kappa = parseFloat(kappaInput.value);
-    const beta = parseFloat(betaInput.value);
-    const pi = parseFloat(piInput.value);
+    const baseLvl = parseFloat(baseLvlInput.value) ?? 1500;
+    const gamma = parseFloat(gammaInput.value) ?? 0.70;
+    const kappa = parseFloat(kappaInput.value) ?? 0.10;
+    const beta = parseFloat(betaInput.value) ?? 0.15;
+    const pi = parseFloat(piInput.value) ?? 0.20;
+    const medianIncome = parseFloat(medianIncomeInput.value) ?? 1500;
 
-    // Save state
-    saveState({ baseLevel, gamma, alpha, kappa, beta, pi });
+    saveState({ baseLvl, gamma, kappa, beta, pi, medianIncome });
 
-    // Update slider displays
-    gammaDisplay.textContent = `${gamma.toFixed(0)}%`;
-    alphaDisplay.textContent = `${alpha.toFixed(0)}%`;
-    kappaDisplay.textContent = `${kappa.toFixed(0)}%`;
-    betaDisplay.textContent = `${beta.toFixed(0)}%`;
-    piDisplay.textContent = `${pi.toFixed(0)}%`;
+    // Calculate alpha
+    const alpha = gamma / (gamma + kappa);
+    
+    // Calculate components in € (relative to baseLvl)
+    const alphaGamma = alpha * gamma;
+    const oneMinusAlphaKappa = (1 - alpha) * kappa;
+    const staatlich = alphaGamma + oneMinusAlphaKappa;
+    const total = alphaGamma + oneMinusAlphaKappa + beta + pi;
 
-    // Calculate components (as percentages of 100)
-    const umlagePart = (alpha / 100) * (gamma / 100) * 100; // α × γ
-    const capitalPart = ((100 - alpha) / 100) * (kappa / 100) * 100; // (1-α) × κ
-    const betaPart = beta; // β (direct addition)
-    const piPart = pi; // π (direct addition)
+    // Monthly income
+    const monthlyIncome = baseLvl * total;
 
-    // Total factor (divide by 100 to get multiplier)
-    const totalFactor = (umlagePart + capitalPart + betaPart + piPart) / 100;
+    // Percentages for bar chart
+    const alphaGammaPercent = (alphaGamma / total) * 100;
+    const oneMinusAlphaKappaPercent = (oneMinusAlphaKappa / total) * 100;
+    const betaPercent = (beta / total) * 100;
+    const piPercent = (pi / total) * 100;
 
-    // Calculate monthly pension
-    const monthly = baseLevel * totalFactor;
+    // Update alpha display
+    alphaDisplay.textContent = `${(alpha * 100).toFixed(1)}%`;
 
-    // Update displays
-    monthlyPension.textContent = `${monthly.toFixed(0)}€`;
-    factorDisplay.textContent = `${totalFactor.toFixed(2)}x`;
+    // Update monthly income
+    monthlyIncomeDisplay.textContent = `${monthlyIncome.toFixed(0)}€`;
 
-    // Update breakdown
-    breakdown.innerHTML = `
-      <div style="display: flex; justify-content: space-between;">
-        <span>α × γ (Umlage)</span>
-        <strong>${umlagePart.toFixed(1)}%</strong>
+    // Median comparison
+    const percentDiff = ((monthlyIncome - medianIncome) / medianIncome) * 100;
+    medianComparisonDisplay.textContent = percentDiff >= 0 
+      ? `+${percentDiff.toFixed(1)}% über Median (${medianIncome.toFixed(0)}€)`
+      : `${percentDiff.toFixed(1)}% unter Median (${medianIncome.toFixed(0)}€)`;
+
+    // Bar chart
+    barChartDisplay.innerHTML = `
+      <div style="flex: ${alphaGammaPercent}; background: #7cb9e8; border-right: 2px solid white;" title="γ Umlage"></div>
+      <div style="flex: ${oneMinusAlphaKappaPercent}; background: #5b9bd5; border-right: 2px solid white;" title="κ Kapitaldeckung"></div>
+      <div style="flex: ${betaPercent}; background: #70ad47; border-right: 2px solid white;" title="β Betriebliche AV"></div>
+      <div style="flex: ${piPercent}; background: #ffc000;" title="π Privates Vermögen"></div>
+    `;
+
+    // Breakdown
+    breakdownDisplay.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <div style="width: 16px; height: 16px; background: #7cb9e8; border-radius: 2px;"></div>
+          <span>γ (Umlage)</span>
+        </div>
+        <strong>${(baseLvl * alphaGamma).toFixed(0)}€ (${alphaGammaPercent.toFixed(1)}%)</strong>
       </div>
-      <div style="display: flex; justify-content: space-between;">
-        <span>(1-α) × κ (Kapitaldeckung)</span>
-        <strong>${capitalPart.toFixed(1)}%</strong>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <div style="width: 16px; height: 16px; background: #5b9bd5; border-radius: 2px;"></div>
+          <span>κ (Kapitaldeckung)</span>
+        </div>
+        <strong>${(baseLvl * oneMinusAlphaKappa).toFixed(0)}€ (${oneMinusAlphaKappaPercent.toFixed(1)}%)</strong>
       </div>
-      <div style="display: flex; justify-content: space-between;">
-        <span>β (Betriebliche AV)</span>
-        <strong>${betaPart.toFixed(1)}%</strong>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <div style="width: 16px; height: 16px; background: #70ad47; border-radius: 2px;"></div>
+          <span>β (Betriebliche AV)</span>
+        </div>
+        <strong>${(baseLvl * beta).toFixed(0)}€ (${betaPercent.toFixed(1)}%)</strong>
       </div>
-      <div style="display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.3); padding-top: 0.5rem;">
-        <span>π (Privates Vermögen)</span>
-        <strong>${piPart.toFixed(1)}%</strong>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <div style="width: 16px; height: 16px; background: #ffc000; border-radius: 2px;"></div>
+          <span>π (Privates Vermögen)</span>
+        </div>
+        <strong>${(baseLvl * pi).toFixed(0)}€ (${piPercent.toFixed(1)}%)</strong>
       </div>
     `;
 
-    // Status based on factor
-    let status = '';
-    let statusColor = '';
-    if (totalFactor < 1.0) {
-      status = '⚠️ Kritisch (< 1.0x)';
-      statusColor = 'rgba(244, 67, 54, 0.2)';
-    } else if (totalFactor < 2.0) {
-      status = '✅ Gut (1.0x - 1.9x)';
-      statusColor = 'rgba(76, 175, 80, 0.2)';
-    } else if (totalFactor < 3.0) {
-      status = '🎯 Sehr gut (2.0x - 2.9x)';
-      statusColor = 'rgba(255, 152, 0, 0.2)';
-    } else {
-      status = '⭐ Exzellent (3.0x+)';
-      statusColor = 'rgba(33, 150, 243, 0.2)';
-    }
-
-    pensionStatus.textContent = status;
-    statusBox.style.background = statusColor;
-    statusBox.innerHTML = `<p style="margin: 0; font-size: 0.9rem; font-weight: 600;">${status}</p>`;
+    // Staatlicher Anteil
+    const staatlichPercent = (staatlich / total) * 100;
+    staatlichDisplay.textContent = `${(baseLvl * staatlich).toFixed(0)}€ (${staatlichPercent.toFixed(1)}%)`;
   }
 
-  baseLevelInput.addEventListener('input', updateDisplay);
+  baseLvlInput.addEventListener('input', updateDisplay);
   gammaInput.addEventListener('input', updateDisplay);
-  alphaInput.addEventListener('input', updateDisplay);
   kappaInput.addEventListener('input', updateDisplay);
   betaInput.addEventListener('input', updateDisplay);
   piInput.addEventListener('input', updateDisplay);
+  medianIncomeInput.addEventListener('input', updateDisplay);
 
   resetBtn.addEventListener('click', () => {
-    baseLevelInput.value = '1000';
-    gammaInput.value = '70';
-    alphaInput.value = '60';
-    kappaInput.value = '10';
-    betaInput.value = '15';
-    piInput.value = '20';
+    baseLvlInput.value = '1500';
+    gammaInput.value = '0.70';
+    kappaInput.value = '0.10';
+    betaInput.value = '0.15';
+    piInput.value = '0.20';
+    medianIncomeInput.value = '1500';
     updateDisplay();
   });
 
-  // Initial display
   updateDisplay();
 }
