@@ -34,8 +34,13 @@ export async function importSessionFromZip(zipBlob: Blob): Promise<Session> {
 
   for (const tableRef of manifest.tables) {
     if (tableRef.type === 'reference') {
+      // References are resolved from /data/ later
       tables.set(tableRef.id, tableRef);
-    } else if (tableRef.type === 'upload' || tableRef.type === 'inline') {
+    } else if (tableRef.type === 'inline') {
+      // Inline data is already in the manifest
+      tables.set(tableRef.id, tableRef);
+    } else if (tableRef.type === 'upload') {
+      // Upload data is in a CSV file in the ZIP
       const csvFile = zip.file(`${tableRef.id}.csv`);
       if (csvFile) {
         const csvContent = await csvFile.async('string');
