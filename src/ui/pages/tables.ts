@@ -64,7 +64,7 @@ export function render(root: HTMLElement): void {
         margin-bottom: 1rem;
         overflow: hidden;
       ">
-        <button class="accordion-header" data-table="${tid}" style="
+        <button class="accordion-header" data-table-id="${tid}" style="
           width: 100%;
           padding: 16px;
           background: #f5f5f5;
@@ -77,16 +77,16 @@ export function render(root: HTMLElement): void {
           justify-content: space-between;
           align-items: center;
           transition: background 0.2s;
-        " onmouseover="this.style.background='#efefef'" onmouseout="this.style.background='#f5f5f5'">
+        ">
           <span>
             📊 ${table.name || table.id}
             <span style="font-size: 0.85rem; color: #666; font-weight: normal; margin-left: 0.5rem;">
               (${table.data?.length || 0} Zeilen)
             </span>
           </span>
-          <span class="accordion-icon" style="font-size: 1.2rem; transition: transform 0.2s;">▶</span>
+          <span class="accordion-icon" style="font-size: 1.2rem; transition: transform 0.2s; display: inline-block;">▶</span>
         </button>
-        <div class="accordion-content" id="${tid}" style="
+        <div class="accordion-content" data-table-id="${tid}" style="
           display: none;
           padding: 20px;
           background: white;
@@ -104,23 +104,6 @@ export function render(root: HTMLElement): void {
     container.innerHTML += panelHTML;
     tableIndex++;
   }
-
-  // Attach accordion handlers
-  container.querySelectorAll<HTMLButtonElement>('.accordion-header').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tableId = btn.dataset['table'];
-      if (!tableId) return;
-
-      const content = container.querySelector(`#${tableId}`) as HTMLElement;
-      const icon = btn.querySelector('.accordion-icon') as HTMLElement;
-
-      if (!content || !icon) return;
-
-      const isOpen = content.style.display !== 'none';
-      content.style.display = isOpen ? 'none' : 'block';
-      icon.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
-    });
-  });
 
   // Export button
   container.innerHTML += `
@@ -140,7 +123,45 @@ export function render(root: HTMLElement): void {
     </div>
   `;
 
+  // Attach export handler
   root.querySelector('#btn-export')?.addEventListener('click', () => {
     window.dispatchEvent(new CustomEvent('session-export'));
+  });
+
+  // Event delegation for accordion headers
+  container.addEventListener('click', (e: Event) => {
+    const target = e.target as HTMLElement;
+    const button = target.closest('.accordion-header') as HTMLButtonElement;
+
+    if (!button) return;
+
+    const tableId = button.dataset['tableId'];
+    if (!tableId) return;
+
+    const content = container.querySelector(`.accordion-content[data-table-id="${tableId}"]`) as HTMLElement;
+    const icon = button.querySelector('.accordion-icon') as HTMLElement;
+
+    if (!content || !icon) return;
+
+    const isOpen = content.style.display !== 'none';
+    content.style.display = isOpen ? 'none' : 'block';
+    icon.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+  });
+
+  // Add hover effects
+  container.addEventListener('mouseover', (e: Event) => {
+    const target = e.target as HTMLElement;
+    const button = target.closest('.accordion-header') as HTMLButtonElement;
+    if (button) {
+      button.style.background = '#efefef';
+    }
+  });
+
+  container.addEventListener('mouseout', (e: Event) => {
+    const target = e.target as HTMLElement;
+    const button = target.closest('.accordion-header') as HTMLButtonElement;
+    if (button) {
+      button.style.background = '#f5f5f5';
+    }
   });
 }
