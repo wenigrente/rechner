@@ -26,13 +26,15 @@ export function render(root: HTMLElement): void {
       <h2>Datentabellen</h2>
       <span class="group-label">${session.tables.size} Tabelle(n) geladen</span>
     </div>
-    <div id="tables-container"></div>
+    <div id="tables-container" style="max-width: 1200px;"></div>
   `;
 
   const container = root.querySelector('#tables-container') as HTMLDivElement;
   if (!container) return;
 
+  let tableIndex = 0;
   for (const [, table] of session.tables) {
+    const tid = `table-${tableIndex}`;
     const rows: string[][] = [];
     if (table.data && Array.isArray(table.data)) {
       const headers = table.metadata?.columns.map((c: any) => c.name) || Object.keys(table.data[0]);
@@ -56,22 +58,83 @@ export function render(root: HTMLElement): void {
       : '<p style="color: #999; text-align: center;">Keine Daten</p>';
 
     const panelHTML = `
-      <div class="panel">
-        <h3>${table.name || table.id}</h3>
-        <p style="font-size: 0.85rem; color: #666; margin: 0.5rem 0;">
-          <strong>Typ:</strong> ${table.type} | 
-          <strong>Zeilen:</strong> ${table.data?.length || 0}
-        </p>
-        ${dataTableHTML}
-        <div id="chart-${table.id}" style="margin-top: 1rem;"></div>
+      <div class="accordion-panel" style="
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        margin-bottom: 1rem;
+        overflow: hidden;
+      ">
+        <button class="accordion-header" data-table="${tid}" style="
+          width: 100%;
+          padding: 16px;
+          background: #f5f5f5;
+          border: none;
+          text-align: left;
+          cursor: pointer;
+          font-size: 1rem;
+          font-weight: 600;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          transition: background 0.2s;
+        " onmouseover="this.style.background='#efefef'" onmouseout="this.style.background='#f5f5f5'">
+          <span>
+            📊 ${table.name || table.id}
+            <span style="font-size: 0.85rem; color: #666; font-weight: normal; margin-left: 0.5rem;">
+              (${table.data?.length || 0} Zeilen)
+            </span>
+          </span>
+          <span class="accordion-icon" style="font-size: 1.2rem; transition: transform 0.2s;">▶</span>
+        </button>
+        <div class="accordion-content" id="${tid}" style="
+          display: none;
+          padding: 20px;
+          background: white;
+          border-top: 1px solid #ddd;
+        ">
+          <p style="font-size: 0.85rem; color: #666; margin: 0 0 1rem 0;">
+            <strong>Typ:</strong> ${table.type}
+            ${table.metadata?.source ? ` | <strong>Quelle:</strong> ${table.metadata.source}` : ''}
+          </p>
+          ${dataTableHTML}
+          <div id="chart-${table.id}" style="margin-top: 1.5rem;"></div>
+        </div>
       </div>
     `;
     container.innerHTML += panelHTML;
+    tableIndex++;
   }
 
+  // Attach accordion handlers
+  container.querySelectorAll<HTMLButtonElement>('.accordion-header').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tableId = btn.dataset['table'];
+      if (!tableId) return;
+
+      const content = container.querySelector(`#${tableId}`) as HTMLElement;
+      const icon = btn.querySelector('.accordion-icon') as HTMLElement;
+
+      if (!content || !icon) return;
+
+      const isOpen = content.style.display !== 'none';
+      content.style.display = isOpen ? 'none' : 'block';
+      icon.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+    });
+  });
+
+  // Export button
   container.innerHTML += `
-    <div class="panel" style="text-align: center; margin-top: 2rem;">
-      <button id="btn-export" class="btn btn-primary btn-lg">
+    <div style="text-align: center; margin-top: 2rem;">
+      <button id="btn-export" class="btn btn-primary btn-lg" style="
+        padding: 12px 24px;
+        background: #005DB5;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1rem;
+        font-weight: 600;
+      ">
         📥 Session exportieren
       </button>
     </div>
