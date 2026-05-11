@@ -1,7 +1,45 @@
-import { tableHTML } from '../charts';
-
 declare global {
   var __session: any;
+}
+
+interface SortState {
+  tableId: string;
+  column: string | null;
+  ascending: boolean | null;
+}
+
+let sortState: SortState[] = [];
+
+function getSortState(tableId: string): SortState {
+  let state = sortState.find(s => s.tableId === tableId);
+  if (!state) {
+    state = { tableId, column: null, ascending: null };
+    sortState.push(state);
+  }
+  return state;
+}
+
+function formatCellValue(v: unknown, columnName?: string): string {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'number') {
+    // Debug: log first time we see a percentage
+    if (v > 0 && v < 1) {
+      console.warn(`[FORMAT] Column "${columnName}": value=${v}, isInteger=${Number.isInteger(v)}, v>0=${v > 0}, v<1=${v < 1}`);
+    }
+
+    // Only format as percentage if it's STRICTLY between 0 and 1 (not including 1)
+    // AND it's NOT an integer (integers should be shown as-is)
+    if (v > 0 && v < 1 && !Number.isInteger(v)) {
+      return (v * 100).toFixed(1) + '%';
+    }
+    // For integers, show as-is
+    if (Number.isInteger(v)) {
+      return String(v);
+    }
+    // For other decimals, show with 2 decimal places
+    return v.toFixed(2);
+  }
+  return String(v);
 }
 
 export function render(root: HTMLElement): void {
@@ -32,114 +70,41 @@ export function render(root: HTMLElement): void {
   const container = root.querySelector('#tables-container') as HTMLDivElement;
   if (!container) return;
 
-  let tableIndex = 0;
-  for (const [, table] of session.tables) {
-    const tid = `table-${tableIndex}`;
-    const rows: string[][] = [];
-    if (table.data && Array.isArray(table.data)) {
-      const headers = table.metadata?.columns.map((c: any) => c.name) || Object.keys(table.data[0]);
-      for (const row of table.data) {
-        const cells = headers.map((h: any) => {
-          const v = row[h];
-          if (v === null || v === undefined) return '';
-          if (typeof v === 'number') {
-            if (v >= 0 && v <= 1) return (v * 100).toFixed(1) + '%';
-            return v.toFixed(2);
-          }
-          return String(v);
-        });
-        rows.push(cells);
-      }
-    }
+  // Build table list for dropdown
+  const tableList = Array.from(session.tables.values()).map((table: any) => ({
+    id: table.id,
+    name: table.name || table.id
+  }));
 
-    const headers = table.metadata?.columns.map((c: any) => c.name) || [];
-    const dataTableHTML = rows.length > 0
-      ? tableHTML(headers, rows)
-      : '<p style="color: #999; text-align: center;">Keine Daten</p>';
-
-    const panelHTML = `
-      <div class="accordion-panel" style="
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        margin-bottom: 1rem;
-        overflow: hidden;
-      ">
-        <button class="accordion-header" data-table-id="${tid}" style="
+  // Add search + dropdown + viewer + export all at once
+  container.innerHTML = `
+    <div style="margin-bottom: 2rem;">
+      <div style="margin-bottom: 1rem;">
+        <input id="table-list-search" type="text" placeholder="🔍 Nach Tabelle suchen..." style="
           width: 100%;
-          padding: 16px;
-          background: #f5f5f5;
-          border: none;
-          text-align: left;
-          cursor: pointer;
+          padding: 10px 12px;
           font-size: 1rem;
-          font-weight: 600;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          transition: background 0.2s;
-        ">
-          <span>
-            📊 ${table.name || table.id}
-            <span style="font-size: 0.85rem; color: #666; font-weight: normal; margin-left: 0.5rem;">
-              (${table.data?.length || 0} Zeilen)
-            </span>
-          </span>
-          <span class="accordion-icon" style="font-size: 1.2rem; transition: transform 0.2s; display: inline-block;">▶</span>
-        </button>
-        <div class="accordion-content" data-table-id="${tid}" style="
-          display: none;
-          padding: 20px;
-          background: white;
-          border-top: 1px solid #ddd;
-        ">
-          <div style="margin-bottom: 1.5rem;">
-            <p style="font-size: 0.85rem; color: #666; margin: 0 0 0.5rem 0;">
-              <strong>ID:</strong> <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-family: monospace;">${table.id}</code>
-            </p>
-            <p style="font-size: 0.85rem; color: #666; margin: 0;">
-              <strong>Typ:</strong> ${table.type}
-              ${table.metadata?.source ? ` | <strong>Quelle:</strong> ${table.metadata.source}` : ''}
-            </p>
-          </div>
-
-          <div style="margin-bottom: 1.5rem; display: flex; gap: 0.5rem;">
-            <button class="btn-copy-csv" data-table-id="${table.id}" style="
-              padding: 8px 12px;
-              background: #4caf50;
-              color: white;
-              border: none;
-              border-radius: 4px;
-              cursor: pointer;
-              font-size: 0.9rem;
-              font-weight: 500;
-            ">
-              📋 In Zwischenablage kopieren
-            </button>
-            <button class="btn-paste-csv" data-table-id="${table.id}" style="
-              padding: 8px 12px;
-              background: #2196f3;
-              color: white;
-              border: none;
-              border-radius: 4px;
-              cursor: pointer;
-              font-size: 0.9rem;
-              font-weight: 500;
-            ">
-              📌 Aus Zwischenablage ersetzen
-            </button>
-          </div>
-
-          ${dataTableHTML}
-          <div id="chart-${table.id}" style="margin-top: 1.5rem;"></div>
-        </div>
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          box-sizing: border-box;
+        " />
       </div>
-    `;
-    container.innerHTML += panelHTML;
-    tableIndex++;
-  }
-
-  // Export button
-  container.innerHTML += `
+      <div style="display: flex; gap: 1rem; align-items: center;">
+        <label style="font-weight: 600;">Tabelle auswählen:</label>
+        <select id="table-selector" style="
+          padding: 8px 12px;
+          font-size: 1rem;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          cursor: pointer;
+          flex: 1;
+        ">
+          <option value="">-- Bitte auswählen --</option>
+          ${tableList.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div id="table-viewer"></div>
     <div style="text-align: center; margin-top: 2rem;">
       <button id="btn-export" class="btn btn-primary btn-lg" style="
         padding: 12px 24px;
@@ -156,114 +121,296 @@ export function render(root: HTMLElement): void {
     </div>
   `;
 
+  const selector = container.querySelector('#table-selector') as HTMLSelectElement;
+  const viewer = container.querySelector('#table-viewer') as HTMLDivElement;
+  const exportBtn = container.querySelector('#btn-export') as HTMLButtonElement;
+  const tableListSearch = container.querySelector('#table-list-search') as HTMLInputElement;
+
+  // Filter dropdown options based on search
+  tableListSearch.addEventListener('input', () => {
+    const searchTerm = tableListSearch.value.toLowerCase();
+    const options = Array.from(selector.querySelectorAll('option'));
+    
+    options.forEach(option => {
+      if (option.value === '') return; // Keep placeholder
+      const text = option.textContent?.toLowerCase() || '';
+      (option as HTMLOptionElement).style.display = text.includes(searchTerm) ? 'block' : 'none';
+    });
+  });
+
+  // Show table when selected
+  selector.addEventListener('change', (e) => {
+    const tableId = (e.target as HTMLSelectElement).value;
+    if (!tableId) {
+      viewer.innerHTML = '';
+      return;
+    }
+    renderTable(viewer, session, tableId);
+  });
+
   // Export handler
-  root.querySelector('#btn-export')?.addEventListener('click', () => {
+  exportBtn.addEventListener('click', () => {
     window.dispatchEvent(new CustomEvent('session-export'));
   });
+}
 
-  // Event delegation for accordion
-  container.addEventListener('click', (e: Event) => {
-    const target = e.target as HTMLElement;
-    const button = target.closest('.accordion-header') as HTMLButtonElement;
+function renderTable(viewer: HTMLElement, session: any, tableId: string): void {
+  const table = session.tables.get(tableId);
+  if (!table) {
+    console.error('Table not found:', tableId);
+    return;
+  }
 
-    if (!button) return;
+  const state = getSortState(tableId);
 
-    const tableId = button.dataset['tableId'];
-    if (!tableId) return;
+  // Get headers
+  const headers = table.metadata?.columns.map((c: any) => c.name) || (table.data && table.data.length > 0 ? Object.keys(table.data[0]) : []);
 
-    const content = container.querySelector(`.accordion-content[data-table-id="${tableId}"]`) as HTMLElement;
-    const icon = button.querySelector('.accordion-icon') as HTMLElement;
+  // Log the first row for debugging
+  console.log(`[TABLE] Loading ${tableId}, first row:`, table.data?.[0]);
 
-    if (!content || !icon) return;
+  // Sort data if needed (only if state.column is set and state.ascending is not null)
+  let sortedData = table.data ? [...table.data] : [];
+  if (state.column && state.ascending !== null && sortedData.length > 0) {
+    const sortCol = state.column;
+    sortedData.sort((a: any, b: any) => {
+      const aVal = a[sortCol];
+      const bVal = b[sortCol];
 
-    const isOpen = content.style.display !== 'none';
-    content.style.display = isOpen ? 'none' : 'block';
-    icon.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
-  });
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return state.ascending ? aVal - bVal : bVal - aVal;
+      }
 
-  // Hover effects
-  container.addEventListener('mouseover', (e: Event) => {
-    const target = e.target as HTMLElement;
-    const button = target.closest('.accordion-header') as HTMLButtonElement;
-    if (button) {
-      button.style.background = '#efefef';
-    }
-  });
-
-  container.addEventListener('mouseout', (e: Event) => {
-    const target = e.target as HTMLElement;
-    const button = target.closest('.accordion-header') as HTMLButtonElement;
-    if (button) {
-      button.style.background = '#f5f5f5';
-    }
-  });
-
-  // Copy to clipboard handlers
-  container.addEventListener('click', (e: Event) => {
-    const target = e.target as HTMLElement;
-    const button = target.closest('.btn-copy-csv') as HTMLButtonElement;
-    if (!button) return;
-
-    const tableId = button.dataset['tableId'];
-    if (!tableId) return;
-
-    const table = session.tables.get(tableId);
-    if (!table || !table.data) return;
-
-    const csv = convertToCSV(table.data);
-    navigator.clipboard.writeText(csv).then(() => {
-      const originalText = button.textContent;
-      button.textContent = '✅ Kopiert!';
-      setTimeout(() => {
-        button.textContent = originalText;
-      }, 2000);
+      const aStr = String(aVal || '').toLowerCase();
+      const bStr = String(bVal || '').toLowerCase();
+      return state.ascending ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr);
     });
-  });
+  }
 
-  // Paste from clipboard handlers
-  container.addEventListener('click', (e: Event) => {
-    const target = e.target as HTMLElement;
-    const button = target.closest('.btn-paste-csv') as HTMLButtonElement;
-    if (!button) return;
+  // Initial render - will be filtered by search input handler
+  let filteredData = sortedData;
 
-    const tableId = button.dataset['tableId'];
-    if (!tableId) return;
+  // Format rows
+  const rows: string[][] = [];
+  for (const row of filteredData) {
+    const cells = headers.map((h: any) => {
+      return formatCellValue((row as any)[h], h);
+    });
+    rows.push(cells);
+  }
 
-    const table = session.tables.get(tableId);
-    if (!table) return;
+  // Build sortable table HTML
+  const headerCells = headers.map((h: any) => {
+    const isActive = state.column === h;
+    let arrow = '';
+    if (isActive) {
+      arrow = state.ascending === true ? ' ▲' : state.ascending === false ? ' ▼' : '';
+    }
+    return `<th style="cursor: pointer; user-select: none; white-space: nowrap; padding: 8px; background: #f5f5f5;" class="sortable-header" data-column="${h}" data-table-id="${tableId}">${h}${arrow}</th>`;
+  }).join('');
 
-    navigator.clipboard.readText().then(async (csv: string) => {
-      try {
-        const newData = parseCSV(csv);
-        
-        // Validate schema
-        const currentHeaders = table.metadata?.columns.map((c: any) => c.name) || [];
-        const newHeaders = Object.keys(newData[0] || {});
+  const dataRows = rows.map(row =>
+    `<tr>${row.map(cell => `<td style="padding: 8px;">${cell}</td>`).join('')}</tr>`
+  ).join('');
 
-        if (JSON.stringify(currentHeaders.sort()) !== JSON.stringify(newHeaders.sort())) {
-          alert(`Schema mismatch!\n\nErwartet: ${currentHeaders.join(', ')}\nErhalten: ${newHeaders.join(', ')}`);
-          return;
-        }
+  const dataTableHTML = rows.length > 0
+    ? `<table class="tbl striped" style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
+         <thead><tr>${headerCells}</tr></thead>
+         <tbody>${dataRows}</tbody>
+       </table>`
+    : '<p style="color: #999; text-align: center;">Keine Daten</p>';
 
-        // Update table
-        table.data = newData;
-        table.metadata = table.metadata || {};
-        table.metadata.updated_at = new Date().toISOString();
+  // Render everything
+  viewer.innerHTML = `
+    <div style="margin-bottom: 1.5rem;">
+      <p style="font-size: 0.85rem; color: #666; margin: 0 0 0.5rem 0;">
+        <strong>ID:</strong> <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-family: monospace;">${table.id}</code>
+      </p>
+      <p style="font-size: 0.85rem; color: #666; margin: 0;">
+        <strong>Typ:</strong> ${table.type}
+        ${table.metadata?.source ? ` | <strong>Quelle:</strong> ${table.metadata.source}` : ''}
+      </p>
+    </div>
 
-        // Update manifest
-        const tableRef = session.manifest.tables.find((t: any) => t.id === tableId);
-        if (tableRef) {
-          tableRef.name = tableRef.name || 'Updated Table';
-        }
+    <div style="margin-bottom: 1.5rem;">
+      <input id="table-data-search" type="text" placeholder="🔍 In dieser Tabelle suchen..." style="
+        width: 100%;
+        padding: 8px 12px;
+        font-size: 1rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-sizing: border-box;
+      " />
+    </div>
 
-        // Re-render
-        const { navigate } = await import('../router');
-        navigate('tables');
-      } catch (error) {
-        alert('Error parsing CSV: ' + error);
+    <div style="margin-bottom: 1.5rem; display: flex; gap: 0.5rem;">
+      <button class="btn-copy-csv" data-table-id="${table.id}" style="
+        padding: 8px 12px;
+        background: #4caf50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        font-weight: 500;
+      ">
+        📋 In Zwischenablage kopieren
+      </button>
+      <button class="btn-paste-csv" data-table-id="${table.id}" style="
+        padding: 8px 12px;
+        background: #2196f3;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        font-weight: 500;
+      ">
+        📌 Aus Zwischenablage ersetzen
+      </button>
+    </div>
+
+    <div style="overflow-x: auto;">
+      ${dataTableHTML}
+    </div>
+  `;
+
+  // NOW setup event handlers AFTER rendering
+  setupTableHandlers(viewer, session, tableId, sortedData, headers);
+}
+
+function setupTableHandlers(
+  viewer: HTMLElement,
+  session: any,
+  _tableId: string,
+  sortedData: any[],
+  headers: string[]
+): void {
+  // Search input handler
+  const searchInput = viewer.querySelector('#table-data-search') as HTMLInputElement;
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      const searchTerm = searchInput.value.toLowerCase();
+      
+      // Filter data
+      let filteredData = sortedData;
+      if (searchTerm) {
+        filteredData = sortedData.filter((row: any) =>
+          headers.some((h: any) => String(row[h] || '').toLowerCase().includes(searchTerm))
+        );
+      }
+
+      // Format and render filtered rows
+      const rows: string[][] = [];
+      for (const row of filteredData) {
+        const cells = headers.map((h: any) => {
+          return formatCellValue((row as any)[h], h);
+        });
+        rows.push(cells);
+      }
+
+      const dataRows = rows.map(row =>
+        `<tr>${row.map(cell => `<td style="padding: 8px;">${cell}</td>`).join('')}</tr>`
+      ).join('');
+
+      const tbody = viewer.querySelector('tbody') as HTMLTableSectionElement;
+      if (tbody) {
+        tbody.innerHTML = dataRows;
       }
     });
+  }
+
+  // Sort column header handler - 3-state toggle: none -> ASC -> DESC -> none
+  const headers_th = viewer.querySelectorAll('.sortable-header') as NodeListOf<HTMLElement>;
+  headers_th.forEach(th => {
+    th.addEventListener('click', () => {
+      const column = th.dataset['column'];
+      const tid = th.dataset['tableId'];
+      if (!column || !tid) return;
+
+      const s = getSortState(tid);
+      
+      // 3-state toggle
+      if (s.column === column) {
+        // Same column clicked again
+        if (s.ascending === true) {
+          // Was ascending, switch to descending
+          s.ascending = false;
+        } else if (s.ascending === false) {
+          // Was descending, switch to no sort
+          s.column = null;
+          s.ascending = null;
+        }
+      } else {
+        // Different column clicked, start with ascending
+        s.column = column;
+        s.ascending = true;
+      }
+
+      // Re-render the full table
+      renderTable(viewer, session, tid);
+    });
   });
+
+  // Copy button
+  const copyBtn = viewer.querySelector('.btn-copy-csv') as HTMLButtonElement;
+  if (copyBtn) {
+    copyBtn.addEventListener('click', () => {
+      const tid = copyBtn.dataset['tableId'];
+      if (!tid) return;
+
+      const t = session.tables.get(tid);
+      if (!t || !t.data) return;
+
+      const csv = convertToCSV(t.data);
+      navigator.clipboard.writeText(csv).then(() => {
+        const originalText = copyBtn.textContent;
+        copyBtn.textContent = '✅ Kopiert!';
+        setTimeout(() => {
+          copyBtn.textContent = originalText;
+        }, 2000);
+      });
+    });
+  }
+
+  // Paste button
+  const pasteBtn = viewer.querySelector('.btn-paste-csv') as HTMLButtonElement;
+  if (pasteBtn) {
+    pasteBtn.addEventListener('click', () => {
+      const tid = pasteBtn.dataset['tableId'];
+      if (!tid) return;
+
+      const t = session.tables.get(tid);
+      if (!t) return;
+
+      navigator.clipboard.readText().then(async (csv: string) => {
+        try {
+          const newData = parseCSV(csv);
+          const currentHeaders = t.metadata?.columns.map((c: any) => c.name) || [];
+          const newHeaders = Object.keys(newData[0] || {});
+
+          if (JSON.stringify(currentHeaders.sort()) !== JSON.stringify(newHeaders.sort())) {
+            alert(`Schema mismatch!\n\nErwartet: ${currentHeaders.join(', ')}\nErhalten: ${newHeaders.join(', ')}`);
+            return;
+          }
+
+          t.data = newData;
+          t.metadata = t.metadata || {};
+          t.metadata.updated_at = new Date().toISOString();
+
+          const tableRef = session.manifest.tables.find((tr: any) => tr.id === tid);
+          if (tableRef) {
+            tableRef.name = tableRef.name || 'Updated Table';
+          }
+
+          sortState = sortState.filter(s => s.tableId !== tid);
+          renderTable(viewer, session, tid);
+        } catch (error) {
+          alert('Error parsing CSV: ' + error);
+        }
+      });
+    });
+  }
 }
 
 function convertToCSV(data: Record<string, unknown>[]): string {

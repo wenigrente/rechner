@@ -12,11 +12,30 @@ arope_armut_ausgrenzung,21.1,percent,Eurostat,2024`,
 1,Tschechien,9.5,2024
 2,Dänemark,11.6,2024
 3,Belgien,11.4,2024
-5,Niederlande,12.1,2024
-6,Finnland,12.6,2024
-16,Deutschland,15.5,2024
-21,Spanien,19.7,2024
-27,Bulgarien,21.7,2024`,
+4,Niederlande,12.1,2024
+5,Finnland,12.6,2024
+6,Schweden,12.8,2024
+7,Frankreich,13.1,2024
+8,Österreich,13.4,2024
+9,Deutschland,15.5,2024
+10,Luxemburg,15.8,2024
+11,Slowenien,16.2,2024
+12,Irland,16.5,2024
+13,Litauen,16.8,2024
+14,Malta,17.1,2024
+15,Zypern,17.4,2024
+16,Estland,17.7,2024
+17,Slowakei,17.9,2024
+18,Kroatien,18.2,2024
+19,Spanien,19.7,2024
+20,Griechenland,19.9,2024
+21,Portugal,20.1,2024
+22,Lettland,20.5,2024
+23,Italien,20.8,2024
+24,Ungarn,21.1,2024
+25,Polen,21.4,2024
+26,Rumänien,21.7,2024
+27,Bulgarien,21.9,2024`,
 
   germany_poverty_trends: `year,germany_absolute,germany_relative,germany_arope,comment
 2019,0,16.6,17.3,Baseline - Platz 9 in EU
@@ -43,7 +62,7 @@ export async function loadDefaultSession(): Promise<Session> {
         type: 'reference',
         name: 'Deutschland Armutsquoten',
         metadata: {
-          source: 'Eurostat / IW Köln',
+          source: 'Eurostat EU-SILC 2024 / IW Köln 2024',
           columns: [
             { name: 'indicator', type: 'string' },
             { name: 'value', type: 'number' },
@@ -56,9 +75,11 @@ export async function loadDefaultSession(): Promise<Session> {
       {
         id: 'eu_poverty_comparison',
         type: 'reference',
-        name: 'EU-27 Armutsvergleich',
+        name: 'EU-27 Armutsvergleich (27 Länder)',
         metadata: {
-          source: 'Eurostat',
+          source: 'Eurostat EU-SILC 2024: Armutsgefährdungsquote (60% Medianeinkommen, nach Sozialleistungen)',
+          url: 'https://ec.europa.eu/eurostat/cache/metadata/en/ilc_li01_esms.htm',
+          note: 'Quelle des Buches: Eurostat Armutsgefährdungsquote 2024 (nach Sozialleistungen), Abschnitt 6',
           columns: [
             { name: 'rank', type: 'number' },
             { name: 'country', type: 'string' },
@@ -72,7 +93,8 @@ export async function loadDefaultSession(): Promise<Session> {
         type: 'reference',
         name: 'Deutschland Armutstrends 2019-2024',
         metadata: {
-          source: 'Eurostat',
+          source: 'Eurostat EU-SILC: Deutschland 2019 (Platz 9), Deutschland 2024 (Platz 19)',
+          note: 'Zeigt 10-Platz-Absturz in 5 Jahren, stärkster Absturz im EU-Vergleich',
           columns: [
             { name: 'year', type: 'number' },
             { name: 'germany_absolute', type: 'number' },
@@ -85,9 +107,10 @@ export async function loadDefaultSession(): Promise<Session> {
       {
         id: 'poverty_definitions',
         type: 'reference',
-        name: 'Armutsdefinitionen',
+        name: 'Armutsdefinitionen (3 Messmethoden)',
         metadata: {
-          source: 'Eurostat / IW Köln',
+          source: 'Eurostat (2 Indikatoren) / IW Köln 2024 (kaufkraftbereinigt)',
+          note: 'Zeigt wie unterschiedliche Definitionen zu unterschiedlichen Armutsquoten führen',
           columns: [
             { name: 'measure', type: 'string' },
             { name: 'value', type: 'number' },
@@ -101,7 +124,8 @@ export async function loadDefaultSession(): Promise<Session> {
         type: 'reference',
         name: 'Kohortenrisiko 1969+',
         metadata: {
-          source: 'Bertelsmann Stiftung',
+          source: 'Bertelsmann Stiftung: Entwicklung der Altersarmut bis 2036',
+          note: '55-60% der Kohorte 1969 lebt im Alter unter 2.500 €/Monat (arm oder nicht gut)',
           columns: [
             { name: 'cohort', type: 'number' },
             { name: 'birth_year', type: 'number' },

@@ -18,6 +18,8 @@ export interface TableReference {
 
 export interface TableMetadata {
   source: string;
+  url?: string;
+  note?: string;
   columns: ColumnDef[];
 }
 
