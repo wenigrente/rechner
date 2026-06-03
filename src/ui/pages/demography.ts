@@ -1,14 +1,25 @@
 import * as d3 from 'd3';
 import { fetchResource } from '../../core/resources';
 
-type DataSource = 'original' | 'reconstructed';
+// source values in the CSV (column 6):
+// 'original'      → Volkszählungen / amtliche Statistiken
+// 'reconstructed' → interpolierte Werte für Lückenjahre
+// 'projection'    → Vorausberechnung (Statistisches Bundesamt)
+type DataSource = 'original' | 'reconstructed' | 'projection';
 
-// original: solid saturated color
-// reconstructed: lighter tint of the same hue (~40% lighter), same opacity
-const COLOR_MALE_ORIGINAL = '#3b82f6';
-const COLOR_MALE_RECON    = '#93c5fd';
-const COLOR_FEMALE_ORIGINAL = '#ec4899';
-const COLOR_FEMALE_RECON    = '#f9a8d4';
+function parseSource(raw: string): DataSource {
+  if (raw === 'original') return 'original';
+  if (raw === 'reconstructed') return 'reconstructed';
+  return 'projection'; // any other value (e.g. 'projection', 'projection_G2L2W1')
+}
+
+// Color pairs [male, female] per source type
+const COLORS: Record<DataSource, { male: string; female: string }> = {
+  original:      { male: '#3b82f6', female: '#ec4899' }, // saturated blue / pink
+  reconstructed: { male: '#93c5fd', female: '#f9a8d4' }, // light tint blue / pink
+  projection:    { male: '#a78bfa', female: '#fbbf24' }, // violet / amber
+};
+
 const BAR_OPACITY = 0.85;
 
 interface DemographyData {
@@ -18,13 +29,23 @@ interface DemographyData {
   weiblich: number;
   gesamt: number;
   source: DataSource;
+  sourceRaw: string;
+}
+
+interface SourceSummary {
+  original: number;
+  reconstructed: number;
+  projection: number;
+  projectionLabel: string;
+  isFullyOriginal: boolean;
+  hasProjection: boolean;
 }
 
 interface ParsedDemography {
   years: number[];
   dataByYear: Map<number, DemographyData[]>;
   maxValue: number;
-  sourceByYear: Map<number, { original: number; reconstructed: number; isFullyOriginal: boolean }>;
+  sourceByYear: Map<number, SourceSummary>;
 }
 
 let demographyCache: ParsedDemography | null = null;
@@ -50,29 +71,38 @@ async function loadDemographyData(): Promise<ParsedDemography> {
     const maennlich = parseInt(parts[2]) || 0;
     const weiblich = parseInt(parts[3]) || 0;
     const gesamt = parseInt(parts[4]) || 0;
-    const rawSource = parts[5] ?? '';
-    const source: DataSource = rawSource === 'original' ? 'original' : 'reconstructed';
+    const sourceRaw = parts[5] ?? '';
+    const source = parseSource(sourceRaw);
 
     if (isNaN(jahr) || isNaN(alter)) continue;
 
     yearsSet.add(jahr);
     maxValue = Math.max(maxValue, maennlich, weiblich);
     if (!dataByYear.has(jahr)) dataByYear.set(jahr, []);
-    dataByYear.get(jahr)!.push({ jahr, alter, maennlich, weiblich, gesamt, source });
+    dataByYear.get(jahr)!.push({ jahr, alter, maennlich, weiblich, gesamt, source, sourceRaw });
   }
 
   const years = Array.from(yearsSet).sort((a, b) => a - b);
   if (years.length === 0) throw new Error('No valid demographic data found in CSV');
 
-  const sourceByYear = new Map<number, { original: number; reconstructed: number; isFullyOriginal: boolean }>();
+  const sourceByYear = new Map<number, SourceSummary>();
   for (const [year, rows] of dataByYear) {
-    const orig = rows.filter(r => r.source === 'original').length;
-    const recon = rows.length - orig;
-    sourceByYear.set(year, { original: orig, reconstructed: recon, isFullyOriginal: recon === 0 });
+    const orig  = rows.filter(r => r.source === 'original').length;
+    const recon = rows.filter(r => r.source === 'reconstructed').length;
+    const proj  = rows.filter(r => r.source === 'projection').length;
+    const projLabel = rows.find(r => r.source === 'projection')?.sourceRaw ?? '';
+    sourceByYear.set(year, {
+      original: orig,
+      reconstructed: recon,
+      projection: proj,
+      projectionLabel: projLabel,
+      isFullyOriginal: recon === 0 && proj === 0,
+      hasProjection: proj > 0,
+    });
   }
 
   demographyCache = { years, dataByYear, maxValue, sourceByYear };
-  console.log(`✓ Loaded ${years.length} years of demographic data`);
+  console.log(`✓ Loaded ${years.length} years of demographic data (up to ${years[years.length - 1]})`);
   return demographyCache;
 }
 
@@ -128,7 +158,12 @@ function renderD3Pyramid(
     .attr('y1', 0).attr('y2', height)
     .style('stroke', '#ccc').style('stroke-width', '1px').style('stroke-dasharray', '4,4');
 
-  // Males (left): solid saturated blue for original, light tint for reconstructed — same opacity
+  const tooltipLabel = (d: DemographyData): string => {
+    if (d.source === 'original') return '📋 Originaldaten';
+    if (d.source === 'reconstructed') return '🔁 Rekonstruiert';
+    return `📈 Projektion (${d.sourceRaw})`;
+  };
+
   g.selectAll('.bar-male')
     .data(sortedData).enter().append('rect')
     .attr('class', 'bar-male')
@@ -136,16 +171,15 @@ function renderD3Pyramid(
     .attr('y', d => yScale(d.alter.toString()) || 0)
     .attr('width', d => xScale(0) - xScale(-d.maennlich))
     .attr('height', yScale.bandwidth())
-    .style('fill', d => d.source === 'original' ? COLOR_MALE_ORIGINAL : COLOR_MALE_RECON)
+    .style('fill', d => COLORS[d.source].male)
     .style('opacity', BAR_OPACITY)
     .on('mouseover', function(event: MouseEvent, d: DemographyData) {
       d3.select(this).style('opacity', 1);
-      showTooltip(event, `Alter ${d.alter} | Männlich: ${formatNumber(d.maennlich)}\nQuelle: ${d.source === 'original' ? '📋 Originaldaten' : '🔁 Rekonstruiert'}`);
+      showTooltip(event, `Alter ${d.alter} | Männlich: ${formatNumber(d.maennlich)}\n${tooltipLabel(d)}`);
     })
     .on('mousemove', (event: MouseEvent) => moveTooltip(event))
     .on('mouseout', function() { d3.select(this).style('opacity', BAR_OPACITY); hideTooltip(); });
 
-  // Females (right)
   g.selectAll('.bar-female')
     .data(sortedData).enter().append('rect')
     .attr('class', 'bar-female')
@@ -153,11 +187,11 @@ function renderD3Pyramid(
     .attr('y', d => yScale(d.alter.toString()) || 0)
     .attr('width', d => xScale(d.weiblich) - xScale(0))
     .attr('height', yScale.bandwidth())
-    .style('fill', d => d.source === 'original' ? COLOR_FEMALE_ORIGINAL : COLOR_FEMALE_RECON)
+    .style('fill', d => COLORS[d.source].female)
     .style('opacity', BAR_OPACITY)
     .on('mouseover', function(event: MouseEvent, d: DemographyData) {
       d3.select(this).style('opacity', 1);
-      showTooltip(event, `Alter ${d.alter} | Weiblich: ${formatNumber(d.weiblich)}\nQuelle: ${d.source === 'original' ? '📋 Originaldaten' : '🔁 Rekonstruiert'}`);
+      showTooltip(event, `Alter ${d.alter} | Weiblich: ${formatNumber(d.weiblich)}\n${tooltipLabel(d)}`);
     })
     .on('mousemove', (event: MouseEvent) => moveTooltip(event))
     .on('mouseout', function() { d3.select(this).style('opacity', BAR_OPACITY); hideTooltip(); });
@@ -202,7 +236,7 @@ function hideTooltip(): void {
   if (tooltip) tooltip.style.display = 'none';
 }
 
-function renderStatistics(container: HTMLElement, data: DemographyData[]): void {
+function renderStatistics(container: HTMLElement, data: DemographyData[], src: SourceSummary): void {
   const statsContainer = container.querySelector('#demography-stats') as HTMLDivElement;
   if (!statsContainer) return;
 
@@ -212,21 +246,26 @@ function renderStatistics(container: HTMLElement, data: DemographyData[]): void 
   const malePercent = ((totalMales / totalPopulation) * 100).toFixed(1);
   const femalePercent = ((totalFemales / totalPopulation) * 100).toFixed(1);
 
-  const origCount = data.filter(d => d.source === 'original').length;
-  const reconCount = data.length - origCount;
-  const isFullyOriginal = reconCount === 0;
-
-  const sourceCard = isFullyOriginal
-    ? `<div style="padding: 12px; background: #f0fdf4; border-radius: 4px; border-left: 3px solid #10b981;">
-        <div style="font-size: 11px; color: #666; margin-bottom: 3px;">Datenquelle</div>
-        <div style="font-size: 13px; font-weight: bold; color: #065f46;">📋 Originaldaten</div>
-        <div style="font-size: 10px; color: #6b7280;">Volkszählung / Statistisches Amt</div>
-      </div>`
-    : `<div style="padding: 12px; background: #fef9ec; border-radius: 4px; border-left: 3px solid #f59e0b;">
-        <div style="font-size: 11px; color: #666; margin-bottom: 3px;">Datenquelle</div>
-        <div style="font-size: 13px; font-weight: bold; color: #92400e;">🔁 Teils rekonstruiert</div>
-        <div style="font-size: 10px; color: #6b7280;">${origCount} original · ${reconCount} rekonstruiert</div>
-      </div>`;
+  let sourceCard: string;
+  if (src.hasProjection) {
+    sourceCard = `<div style="padding: 12px; background: #f5f3ff; border-radius: 4px; border-left: 3px solid #8b5cf6;">
+      <div style="font-size: 11px; color: #666; margin-bottom: 3px;">Datenquelle</div>
+      <div style="font-size: 13px; font-weight: bold; color: #5b21b6;">📈 Projektion</div>
+      <div style="font-size: 10px; color: #6b7280;">${src.projectionLabel}</div>
+    </div>`;
+  } else if (src.isFullyOriginal) {
+    sourceCard = `<div style="padding: 12px; background: #f0fdf4; border-radius: 4px; border-left: 3px solid #10b981;">
+      <div style="font-size: 11px; color: #666; margin-bottom: 3px;">Datenquelle</div>
+      <div style="font-size: 13px; font-weight: bold; color: #065f46;">📋 Originaldaten</div>
+      <div style="font-size: 10px; color: #6b7280;">Volkszählung / Statistisches Amt</div>
+    </div>`;
+  } else {
+    sourceCard = `<div style="padding: 12px; background: #fef9ec; border-radius: 4px; border-left: 3px solid #f59e0b;">
+      <div style="font-size: 11px; color: #666; margin-bottom: 3px;">Datenquelle</div>
+      <div style="font-size: 13px; font-weight: bold; color: #92400e;">🔁 Teils rekonstruiert</div>
+      <div style="font-size: 10px; color: #6b7280;">${src.original} original · ${src.reconstructed} rekonstruiert</div>
+    </div>`;
+  }
 
   statsContainer.innerHTML = `
     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
@@ -250,19 +289,23 @@ function renderStatistics(container: HTMLElement, data: DemographyData[]): void 
   `;
 }
 
-function updateLegend(container: HTMLElement, sourceInfo: { original: number; reconstructed: number; isFullyOriginal: boolean }): void {
+function updateLegend(container: HTMLElement, src: SourceSummary): void {
   const el = container.querySelector('#legend-source-note') as HTMLElement;
   if (!el) return;
-  if (sourceInfo.isFullyOriginal) {
-    el.innerHTML = `<strong>📋 Originaldaten</strong> = Volkszählungen &amp; amtliche Statistiken (satte Farbe).<br>
-      <strong>🔁 Rekonstruiert</strong> = interpolierte/modellierte Werte für Zwischenjahre (helle Farbe).`;
+
+  if (src.hasProjection) {
+    el.style.background = '#f5f3ff';
+    el.style.borderColor = '#c4b5fd';
+    el.innerHTML = `<strong>📈 Projektion</strong> (violett/amber) — Vorausberechnung des Statistischen Bundesamts (${src.projectionLabel}).`;
+  } else if (src.isFullyOriginal) {
     el.style.background = '#f0fdf4';
     el.style.borderColor = '#86efac';
+    el.innerHTML = `<strong>📋 Originaldaten</strong> (satte Farbe) — Volkszählungen &amp; amtliche Statistiken.`;
   } else {
-    el.innerHTML = `<strong>📋 Originaldaten</strong> (satte Farbe) — ${sourceInfo.original} Altersgruppen.<br>
-      <strong>🔁 Rekonstruiert</strong> (helle Farbe) — ${sourceInfo.reconstructed} Altersgruppen.`;
     el.style.background = '#fef9ec';
     el.style.borderColor = '#fcd34d';
+    el.innerHTML = `<strong>📋 Originaldaten</strong> (satte Farbe) — ${src.original} Altersgruppen.<br>
+      <strong>🔁 Rekonstruiert</strong> (helle Farbe) — ${src.reconstructed} Altersgruppen.`;
   }
 }
 
@@ -276,15 +319,20 @@ function updateChart(container: HTMLElement, demography: ParsedDemography): void
   if (!selectedYear || !demography.dataByYear.has(selectedYear)) return;
 
   const yearData = demography.dataByYear.get(selectedYear)!;
-  const sourceInfo = demography.sourceByYear.get(selectedYear)!;
+  const src = demography.sourceByYear.get(selectedYear)!;
 
-  renderStatistics(container, yearData);
+  renderStatistics(container, yearData, src);
   renderD3Pyramid(container, yearData, selectedYear, demography.maxValue);
-  updateLegend(container, sourceInfo);
+  updateLegend(container, src);
 
   const sourceIndicator = container.querySelector('#source-indicator') as HTMLSpanElement;
   if (sourceIndicator) {
-    if (sourceInfo.isFullyOriginal) {
+    if (src.hasProjection) {
+      sourceIndicator.textContent = '📈 Projektion';
+      sourceIndicator.style.background = '#ede9fe';
+      sourceIndicator.style.color = '#5b21b6';
+      sourceIndicator.style.border = '1px solid #c4b5fd';
+    } else if (src.isFullyOriginal) {
       sourceIndicator.textContent = '📋 Originaldaten';
       sourceIndicator.style.background = '#dcfce7';
       sourceIndicator.style.color = '#065f46';
@@ -311,7 +359,7 @@ export async function render(container: HTMLElement): Promise<void> {
     <div style="padding: 20px;">
       <h1 style="margin: 0 0 8px 0; font-size: 22px;">Bevölkerungsdemographie</h1>
       <p style="margin: 0 0 20px 0; color: #666; font-size: 13px;">
-        Interaktive Bevölkerungspyramide mit Altersverteilung nach Geschlecht, 1871–2021.
+        Interaktive Bevölkerungspyramide mit Altersverteilung nach Geschlecht, 1871–2070.
       </p>
 
       <div style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 6px; border: 1px solid #e0e0e0;">
@@ -323,9 +371,9 @@ export async function render(container: HTMLElement): Promise<void> {
           <div id="year-label" style="padding: 6px 12px; background: #3b82f6; color: white; border-radius: 4px; font-weight: bold; font-size: 13px; min-width: 50px; text-align: center;">1871</div>
           <span id="source-indicator" style="padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; transition: all 0.2s;">—</span>
         </div>
-        <input id="year-slider" type="range" min="1871" max="2021" value="1871" style="width: 100%; height: 6px; cursor: pointer; accent-color: #3b82f6;" />
+        <input id="year-slider" type="range" min="1871" max="2070" value="1871" style="width: 100%; height: 6px; cursor: pointer; accent-color: #3b82f6;" />
         <div style="display: flex; justify-content: space-between; font-size: 11px; color: #999; margin-top: 5px;">
-          <span>1871</span><span>2021</span>
+          <span>1871</span><span>2070</span>
         </div>
       </div>
 
@@ -338,25 +386,24 @@ export async function render(container: HTMLElement): Promise<void> {
       </div>
 
       <div style="padding: 12px 15px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 12px; color: #555; margin-top: 4px; display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: start;">
-        <div style="white-space: nowrap;">
-          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
-            <span style="display: inline-block; width: 14px; height: 10px; background: ${COLOR_MALE_ORIGINAL}; border-radius: 2px;"></span>
-            <span>Männlich (original)</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
-            <span style="display: inline-block; width: 14px; height: 10px; background: ${COLOR_MALE_RECON}; border-radius: 2px;"></span>
-            <span>Männlich (rekonstruiert)</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
-            <span style="display: inline-block; width: 14px; height: 10px; background: ${COLOR_FEMALE_ORIGINAL}; border-radius: 2px;"></span>
-            <span>Weiblich (original)</span>
+        <div style="white-space: nowrap; line-height: 2;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="display: inline-block; width: 14px; height: 10px; background: ${COLORS.original.male}; border-radius: 2px;"></span>
+            <span style="display: inline-block; width: 14px; height: 10px; background: ${COLORS.original.female}; border-radius: 2px;"></span>
+            <span>📋 Original</span>
           </div>
           <div style="display: flex; align-items: center; gap: 6px;">
-            <span style="display: inline-block; width: 14px; height: 10px; background: ${COLOR_FEMALE_RECON}; border-radius: 2px;"></span>
-            <span>Weiblich (rekonstruiert)</span>
+            <span style="display: inline-block; width: 14px; height: 10px; background: ${COLORS.reconstructed.male}; border-radius: 2px;"></span>
+            <span style="display: inline-block; width: 14px; height: 10px; background: ${COLORS.reconstructed.female}; border-radius: 2px;"></span>
+            <span>🔁 Rekonstruiert</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="display: inline-block; width: 14px; height: 10px; background: ${COLORS.projection.male}; border-radius: 2px;"></span>
+            <span style="display: inline-block; width: 14px; height: 10px; background: ${COLORS.projection.female}; border-radius: 2px;"></span>
+            <span>📈 Projektion</span>
           </div>
         </div>
-        <div id="legend-source-note" style="padding: 8px 10px; border-radius: 4px; border: 1px solid #e2e8f0; background: #f8fafc; line-height: 1.6;">
+        <div id="legend-source-note" style="padding: 8px 10px; border-radius: 4px; border: 1px solid #e2e8f0; background: #f8fafc; line-height: 1.8;">
           Lade Quelleninformation…
         </div>
       </div>
@@ -378,8 +425,8 @@ export async function render(container: HTMLElement): Promise<void> {
 
     dropdown.innerHTML = demography.years
       .map(year => {
-        const src = demography.sourceByYear.get(year);
-        const tag = src?.isFullyOriginal ? ' ★' : '';
+        const s = demography.sourceByYear.get(year);
+        const tag = s?.isFullyOriginal ? ' ★' : s?.hasProjection ? ' ~' : '';
         return `<option value="${year}">${year}${tag}</option>`;
       })
       .join('');

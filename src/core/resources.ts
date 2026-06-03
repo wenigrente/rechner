@@ -44,8 +44,10 @@ export const RESOURCES = {
   demographie_complete: {
     label: 'Demographie 1871–2021 (complete)',
     urls: [
-      '/rechner/data/poverty/demographie_1871_2021_complete.csv',
-      './data/poverty/demographie_1871_2021_complete.csv',
+      // '/rechner/data/poverty/demographie_1871_2021_complete.csv',
+      // './data/poverty/demographie_1871_2021_complete.csv',
+      '/rechner/data/poverty/demographie_1871_2070_complete.csv',
+      './data/poverty/demographie_1871_2070_complete.csv',
     ],
   },
 
@@ -58,8 +60,10 @@ export const RESOURCES = {
   demographie_wavelet: {
     label: 'Demographie 1871–2021 (wavelet)',
     urls: [
-      '/rechner/data/poverty/demographie_1871_2021_wavelet.csv',
-      './data/poverty/demographie_1871_2021_wavelet.csv',
+      // '/rechner/data/poverty/demographie_1871_2021_wavelet.csv',
+      // './data/poverty/demographie_1871_2021_wavelet.csv',
+      '/rechner/data/poverty/demographie_1871_2070_complete.csv',
+      './data/poverty/demographie_1871_2070_complete.csv',
     ],
   },
 } as const satisfies Record<string, ResourceEntry>;
