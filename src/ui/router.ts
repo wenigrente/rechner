@@ -1,6 +1,6 @@
 import i18next from '../i18n/i18n';
 
-type PageId = 'home' | 'tables' | 'charts' | 'calculator' | 'bescheid' | 'planung';
+type PageId = 'home' | 'tables' | 'charts' | 'calculator' | 'bescheid' | 'planung' | 'demography';
 
 interface RouterState {
   activePage: PageId;
@@ -40,6 +40,8 @@ export async function renderApp(): Promise<void> {
       module = await import('./pages/bescheid');
     } else if (active === 'planung') {
       module = await import('./pages/planung');
+    } else if (active === 'demography') {
+      module = await import('./pages/demography');
     } else {
       module = await import('./pages/home');
     }
@@ -65,6 +67,7 @@ function getShellHTML(active: PageId): string {
     { id: 'calculator' as PageId, label: 'Rechner', icon: '🧮' },
     { id: 'bescheid' as PageId, label: 'Bescheid', icon: '📋' },
     { id: 'planung' as PageId, label: 'Planung', icon: '🔮' },
+    { id: 'demography' as PageId, label: 'Demography', icon: '👥' },
   ];
 
   const navHTML = navItems

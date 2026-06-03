@@ -15,11 +15,13 @@
   },
   "dependencies": {
     "apexcharts": "^3.49.0",
+    "d3": "^7.9.0",
     "i18next": "^23.11.5",
     "js-yaml": "^4.1.0",
     "jszip": "^3.10.1"
   },
   "devDependencies": {
+    "@types/d3": "^7.4.3",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.0.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
