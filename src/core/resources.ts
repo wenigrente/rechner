@@ -1,23 +1,43 @@
 /**
  * Central registry of all static file resources (CSV, JSON, etc.) used by the app.
  *
- * Each entry lists candidate URL paths in priority order. The fetch helper tries
- * them in sequence and returns the first successful response. This handles the
- * dev-server path (/rechner/...) and the Vite public-folder fallback (./...).
+ * SOURCE OF TRUTH
+ * ---------------
+ * All data files live in:   data/poverty/
+ * Never edit files in:      public/data/poverty/   ← build artifact, auto-copied by CI
  *
- * Add new resources here — never hardcode paths in page/component files.
+ * The CI workflow (.github/workflows/deploy.yml) runs
+ *   cp data/poverty/*.csv public/data/poverty/
+ * before the Vite build, so everything in data/ ends up in dist/ automatically.
+ *
+ * HOW TO ADD A NEW RESOURCE
+ * -------------------------
+ * 1. Put the file in data/poverty/ (or a sibling folder).
+ * 2. Add an entry to RESOURCES below with the correct runtime URL path (/rechner/data/...).
+ * 3. Done — CI picks it up on next push.
+ *
+ * RUNTIME URL PATHS
+ * -----------------
+ * Vite base: /rechner/   →  files land at  /rechner/data/poverty/<name>
+ * The fallback path (./data/...) covers the local dev server.
  */
 
 export interface ResourceEntry {
-  /** Human-readable label for logs and error messages. */
+  /** Human-readable label used in log messages and error output. */
   label: string;
-  /** Candidate URLs tried in order. First 200-OK response wins. */
+  /**
+   * Candidate URLs tried in priority order.
+   * First 200-OK response wins.
+   * [0] = GitHub Pages / production
+   * [1] = Vite dev server fallback
+   */
   urls: string[];
 }
 
 export const RESOURCES = {
   /**
    * Demographic age-structure data 1871–2021.
+   * Source file: data/poverty/demographie_1871_2021_complete.csv
    * Columns: jahr, alter, maennlich, weiblich, gesamt, source
    * source ∈ { 'original', 'reconstructed' }
    */
@@ -31,7 +51,9 @@ export const RESOURCES = {
 
   /**
    * Wavelet-smoothed variant of the same demographic data.
-   * Uncomment the relevant URL in demography.ts to switch datasets.
+   * Source file: data/poverty/demographie_1871_2021_wavelet.csv
+   * Use in demography.ts by switching fetchResource('demographie_complete')
+   * to fetchResource('demographie_wavelet').
    */
   demographie_wavelet: {
     label: 'Demographie 1871–2021 (wavelet)',
@@ -44,7 +66,7 @@ export const RESOURCES = {
 
 /**
  * Fetches a registered resource by key, trying each candidate URL in order.
- * Throws if all URLs fail.
+ * Throws with a clear message listing all attempted paths if all fail.
  */
 export async function fetchResource(key: keyof typeof RESOURCES): Promise<string> {
   const entry = RESOURCES[key];

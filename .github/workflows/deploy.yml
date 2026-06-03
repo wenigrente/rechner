@@ -71,6 +71,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Copy data files to public/
+        run: |
+          mkdir -p public/data/poverty
+          cp data/poverty/*.csv public/data/poverty/
+
       - name: Build
         run: npm run build
 
