@@ -4,6 +4,14 @@ import { fetchResource } from '../../core/resources';
 
 type DataSource = 'original' | 'reconstructed';
 
+// original: solid saturated color
+// reconstructed: lighter tint of the same hue (~40% lighter), same opacity
+const COLOR_MALE_ORIGINAL = '#3b82f6';
+const COLOR_MALE_RECON    = '#93c5fd';
+const COLOR_FEMALE_ORIGINAL = '#ec4899';
+const COLOR_FEMALE_RECON    = '#f9a8d4';
+const BAR_OPACITY = 0.85;
+
 interface DemographyData {
   jahr: number;
   alter: number;
@@ -24,9 +32,7 @@ let demographyCache: ParsedDemography | null = null;
 let selectedYear: number | null = null;
 
 async function loadDemographyData(): Promise<ParsedDemography> {
-  if (demographyCache) {
-    return demographyCache;
-  }
+  if (demographyCache) return demographyCache;
 
   // Switch key to 'demographie_wavelet' to use the smoothed dataset instead.
   const csv = await fetchResource('demographie_complete');
@@ -52,19 +58,12 @@ async function loadDemographyData(): Promise<ParsedDemography> {
 
     yearsSet.add(jahr);
     maxValue = Math.max(maxValue, maennlich, weiblich);
-
-    if (!dataByYear.has(jahr)) {
-      dataByYear.set(jahr, []);
-    }
-
+    if (!dataByYear.has(jahr)) dataByYear.set(jahr, []);
     dataByYear.get(jahr)!.push({ jahr, alter, maennlich, weiblich, gesamt, source });
   }
 
   const years = Array.from(yearsSet).sort((a, b) => a - b);
-
-  if (years.length === 0) {
-    throw new Error('No valid demographic data found in CSV');
-  }
+  if (years.length === 0) throw new Error('No valid demographic data found in CSV');
 
   const sourceByYear = new Map<number, { original: number; reconstructed: number; isFullyOriginal: boolean }>();
   for (const [year, rows] of dataByYear) {
@@ -86,57 +85,24 @@ function renderD3Pyramid(
 ): void {
   const chartContainer = container.querySelector('#demography-chart') as HTMLDivElement;
   if (!chartContainer) return;
-
   chartContainer.innerHTML = '';
 
   const margin = { top: 30, right: 20, bottom: 30, left: 40 };
   const width = 700 - margin.left - margin.right;
   const height = 400 - margin.top - margin.bottom;
-
   const sortedData = [...data].sort((a, b) => a.alter - b.alter);
 
-  const svg = d3
-    .select(chartContainer)
+  const svg = d3.select(chartContainer)
     .append('svg')
     .attr('viewBox', `0 0 700 400`)
     .attr('width', '100%')
     .attr('height', '400')
     .style('max-width', '100%');
 
-  // SVG hatch pattern for reconstructed bars — defined first in defs
-  const defs = svg.append('defs');
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
 
-  defs.append('pattern')
-    .attr('id', 'hatch-male')
-    .attr('patternUnits', 'userSpaceOnUse')
-    .attr('width', 5)
-    .attr('height', 5)
-    .append('path')
-    .attr('d', 'M0,5 l5,-5 M-1,1 l2,-2 M4,6 l2,-2')
-    .style('stroke', '#3b82f6')
-    .style('stroke-width', '1.2');
-
-  defs.append('pattern')
-    .attr('id', 'hatch-female')
-    .attr('patternUnits', 'userSpaceOnUse')
-    .attr('width', 5)
-    .attr('height', 5)
-    .append('path')
-    .attr('d', 'M0,5 l5,-5 M-1,1 l2,-2 M4,6 l2,-2')
-    .style('stroke', '#ec4899')
-    .style('stroke-width', '1.2');
-
-  const g = svg
-    .append('g')
-    .attr('transform', `translate(${margin.left},${margin.top})`);
-
-  const xScale = d3
-    .scaleLinear()
-    .domain([-maxValue, maxValue])
-    .range([0, width]);
-
-  const yScale = d3
-    .scaleBand()
+  const xScale = d3.scaleLinear().domain([-maxValue, maxValue]).range([0, width]);
+  const yScale = d3.scaleBand()
     .domain(sortedData.map(d => d.alter.toString()))
     .range([height, 0])
     .padding(0.05);
@@ -153,83 +119,53 @@ function renderD3Pyramid(
   const yAxis = d3.axisLeft(yScale)
     .tickValues(sortedData.filter((_, i) => i % 5 === 0).map(d => d.alter.toString()));
 
-  g.append('g')
-    .attr('transform', `translate(0,${height})`)
-    .call(xAxis)
-    .style('font-size', '11px')
-    .select('.domain')
-    .remove();
-
+  g.append('g').attr('transform', `translate(0,${height})`).call(xAxis)
+    .style('font-size', '11px').select('.domain').remove();
   g.selectAll('.tick line').style('stroke', '#f0f0f0');
-
-  g.append('g')
-    .call(yAxis)
-    .style('font-size', '10px')
-    .select('.domain')
-    .remove();
+  g.append('g').call(yAxis).style('font-size', '10px').select('.domain').remove();
 
   g.append('line')
-    .attr('x1', xScale(0))
-    .attr('x2', xScale(0))
-    .attr('y1', 0)
-    .attr('y2', height)
-    .style('stroke', '#ccc')
-    .style('stroke-width', '1px')
-    .style('stroke-dasharray', '4,4');
+    .attr('x1', xScale(0)).attr('x2', xScale(0))
+    .attr('y1', 0).attr('y2', height)
+    .style('stroke', '#ccc').style('stroke-width', '1px').style('stroke-dasharray', '4,4');
 
-  // Males (left) — hatched if reconstructed, solid if original; same opacity always
+  // Males (left): solid saturated blue for original, light tint for reconstructed — same opacity
   g.selectAll('.bar-male')
-    .data(sortedData)
-    .enter()
-    .append('rect')
+    .data(sortedData).enter().append('rect')
     .attr('class', 'bar-male')
     .attr('x', d => xScale(-d.maennlich))
     .attr('y', d => yScale(d.alter.toString()) || 0)
     .attr('width', d => xScale(0) - xScale(-d.maennlich))
     .attr('height', yScale.bandwidth())
-    .style('fill', d => d.source === 'original' ? '#3b82f6' : 'url(#hatch-male)')
-    .style('opacity', 0.85)
+    .style('fill', d => d.source === 'original' ? COLOR_MALE_ORIGINAL : COLOR_MALE_RECON)
+    .style('opacity', BAR_OPACITY)
     .on('mouseover', function(event: MouseEvent, d: DemographyData) {
       d3.select(this).style('opacity', 1);
       showTooltip(event, `Alter ${d.alter} | Männlich: ${formatNumber(d.maennlich)}\nQuelle: ${d.source === 'original' ? '📋 Originaldaten' : '🔁 Rekonstruiert'}`);
     })
     .on('mousemove', (event: MouseEvent) => moveTooltip(event))
-    .on('mouseout', function() {
-      d3.select(this).style('opacity', 0.85);
-      hideTooltip();
-    });
+    .on('mouseout', function() { d3.select(this).style('opacity', BAR_OPACITY); hideTooltip(); });
 
   // Females (right)
   g.selectAll('.bar-female')
-    .data(sortedData)
-    .enter()
-    .append('rect')
+    .data(sortedData).enter().append('rect')
     .attr('class', 'bar-female')
     .attr('x', xScale(0))
     .attr('y', d => yScale(d.alter.toString()) || 0)
     .attr('width', d => xScale(d.weiblich) - xScale(0))
     .attr('height', yScale.bandwidth())
-    .style('fill', d => d.source === 'original' ? '#ec4899' : 'url(#hatch-female)')
-    .style('opacity', 0.85)
+    .style('fill', d => d.source === 'original' ? COLOR_FEMALE_ORIGINAL : COLOR_FEMALE_RECON)
+    .style('opacity', BAR_OPACITY)
     .on('mouseover', function(event: MouseEvent, d: DemographyData) {
       d3.select(this).style('opacity', 1);
       showTooltip(event, `Alter ${d.alter} | Weiblich: ${formatNumber(d.weiblich)}\nQuelle: ${d.source === 'original' ? '📋 Originaldaten' : '🔁 Rekonstruiert'}`);
     })
     .on('mousemove', (event: MouseEvent) => moveTooltip(event))
-    .on('mouseout', function() {
-      d3.select(this).style('opacity', 0.85);
-      hideTooltip();
-    });
+    .on('mouseout', function() { d3.select(this).style('opacity', BAR_OPACITY); hideTooltip(); });
 
-  // Title only — no legend box inside the SVG
-  svg
-    .append('text')
-    .attr('x', 350)
-    .attr('y', 20)
-    .attr('text-anchor', 'middle')
-    .style('font-size', '16px')
-    .style('font-weight', 'bold')
-    .style('fill', '#333')
+  svg.append('text')
+    .attr('x', 350).attr('y', 20).attr('text-anchor', 'middle')
+    .style('font-size', '16px').style('font-weight', 'bold').style('fill', '#333')
     .text(`Bevölkerungspyramide Deutschland ${year}`);
 }
 
@@ -240,18 +176,10 @@ function getTooltip(): HTMLDivElement {
   if (!tooltip) {
     tooltip = document.createElement('div');
     tooltip.style.cssText = `
-      position: fixed;
-      background: rgba(30,30,30,0.92);
-      color: #fff;
-      padding: 7px 11px;
-      border-radius: 5px;
-      font-size: 12px;
-      pointer-events: none;
-      white-space: pre-line;
-      line-height: 1.5;
-      z-index: 9999;
-      display: none;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      position: fixed; background: rgba(30,30,30,0.92); color: #fff;
+      padding: 7px 11px; border-radius: 5px; font-size: 12px;
+      pointer-events: none; white-space: pre-line; line-height: 1.5;
+      z-index: 9999; display: none; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
     `;
     document.body.appendChild(tooltip);
   }
@@ -328,13 +256,13 @@ function updateLegend(container: HTMLElement, sourceInfo: { original: number; re
   const el = container.querySelector('#legend-source-note') as HTMLElement;
   if (!el) return;
   if (sourceInfo.isFullyOriginal) {
-    el.innerHTML = `<strong>📋 Originaldaten</strong> = Volkszählungen &amp; amtliche Statistiken (Vollton).
-      <strong>🔁 Rekonstruiert</strong> = interpolierte/modellierte Werte für Zwischenjahre (schraffiert).`;
+    el.innerHTML = `<strong>📋 Originaldaten</strong> = Volkszählungen &amp; amtliche Statistiken (satte Farbe).<br>
+      <strong>🔁 Rekonstruiert</strong> = interpolierte/modellierte Werte für Zwischenjahre (helle Farbe).`;
     el.style.background = '#f0fdf4';
     el.style.borderColor = '#86efac';
   } else {
-    el.innerHTML = `<strong>📋 Originaldaten</strong> = Volkszählungen &amp; amtliche Statistiken (Vollton) — ${sourceInfo.original} Altersgruppen.
-      <strong>🔁 Rekonstruiert</strong> = interpolierte/modellierte Werte (schraffiert) — ${sourceInfo.reconstructed} Altersgruppen.`;
+    el.innerHTML = `<strong>📋 Originaldaten</strong> (satte Farbe) — ${sourceInfo.original} Altersgruppen.<br>
+      <strong>🔁 Rekonstruiert</strong> (helle Farbe) — ${sourceInfo.reconstructed} Altersgruppen.`;
     el.style.background = '#fef9ec';
     el.style.borderColor = '#fcd34d';
   }
@@ -388,96 +316,50 @@ export async function render(container: HTMLElement): Promise<void> {
         Interaktive Bevölkerungspyramide mit Altersverteilung nach Geschlecht, 1871–2021.
       </p>
 
-      <!-- Year selector -->
-      <div style="
-        margin-bottom: 20px;
-        padding: 15px;
-        background: #f9f9f9;
-        border-radius: 6px;
-        border: 1px solid #e0e0e0;
-      ">
+      <div style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 6px; border: 1px solid #e0e0e0;">
         <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px; flex-wrap: wrap;">
           <label style="font-weight: 600; font-size: 13px; white-space: nowrap;">Jahr:</label>
-          <select id="year-selector" style="
-            padding: 6px 10px;
-            font-size: 13px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            cursor: pointer;
-            min-width: 100px;
-          ">
+          <select id="year-selector" style="padding: 6px 10px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; min-width: 100px;">
             <option value="">Laden...</option>
           </select>
-          <div id="year-label" style="
-            padding: 6px 12px;
-            background: #3b82f6;
-            color: white;
-            border-radius: 4px;
-            font-weight: bold;
-            font-size: 13px;
-            min-width: 50px;
-            text-align: center;
-          ">1871</div>
-          <span id="source-indicator" style="
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 600;
-            transition: all 0.2s;
-          ">—</span>
+          <div id="year-label" style="padding: 6px 12px; background: #3b82f6; color: white; border-radius: 4px; font-weight: bold; font-size: 13px; min-width: 50px; text-align: center;">1871</div>
+          <span id="source-indicator" style="padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; transition: all 0.2s;">—</span>
         </div>
-        <input id="year-slider" type="range" min="1871" max="2021" value="1871" style="
-          width: 100%;
-          height: 6px;
-          cursor: pointer;
-          accent-color: #3b82f6;
-        " />
+        <input id="year-slider" type="range" min="1871" max="2021" value="1871" style="width: 100%; height: 6px; cursor: pointer; accent-color: #3b82f6;" />
         <div style="display: flex; justify-content: space-between; font-size: 11px; color: #999; margin-top: 5px;">
-          <span>1871</span>
-          <span>2021</span>
+          <span>1871</span><span>2021</span>
         </div>
       </div>
 
-      <!-- Statistics cards -->
       <div id="demography-stats" style="margin-bottom: 20px;">
         <div style="text-align: center; color: #999; padding: 20px;">Daten werden geladen…</div>
       </div>
 
-      <!-- Chart -->
       <div id="demography-chart" style="margin: 20px 0; overflow-x: auto;">
         <div style="text-align: center; color: #999; padding: 40px;">Diagramm wird geladen…</div>
       </div>
 
-      <!-- Legend / info box — below the chart, updated dynamically -->
-      <div style="
-        padding: 12px 15px;
-        border-radius: 6px;
-        border: 1px solid #e2e8f0;
-        font-size: 12px;
-        color: #555;
-        margin-top: 4px;
-        display: grid;
-        grid-template-columns: auto 1fr;
-        gap: 16px;
-        align-items: start;
-      ">
+      <!-- Legend below chart — color swatches left, source explanation right -->
+      <div style="padding: 12px 15px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 12px; color: #555; margin-top: 4px; display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: start;">
         <div style="white-space: nowrap;">
-          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
-            <span style="display: inline-block; width: 14px; height: 10px; background: #3b82f6; border-radius: 2px;"></span>
-            <span>Männlich</span>
+          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+            <span style="display: inline-block; width: 14px; height: 10px; background: ${COLOR_MALE_ORIGINAL}; border-radius: 2px;"></span>
+            <span>Männlich (original)</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+            <span style="display: inline-block; width: 14px; height: 10px; background: ${COLOR_MALE_RECON}; border-radius: 2px;"></span>
+            <span>Männlich (rekonstruiert)</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+            <span style="display: inline-block; width: 14px; height: 10px; background: ${COLOR_FEMALE_ORIGINAL}; border-radius: 2px;"></span>
+            <span>Weiblich (original)</span>
           </div>
           <div style="display: flex; align-items: center; gap: 6px;">
-            <span style="display: inline-block; width: 14px; height: 10px; background: #ec4899; border-radius: 2px;"></span>
-            <span>Weiblich</span>
+            <span style="display: inline-block; width: 14px; height: 10px; background: ${COLOR_FEMALE_RECON}; border-radius: 2px;"></span>
+            <span>Weiblich (rekonstruiert)</span>
           </div>
         </div>
-        <div id="legend-source-note" style="
-          padding: 8px 10px;
-          border-radius: 4px;
-          border: 1px solid #e2e8f0;
-          background: #f8fafc;
-          line-height: 1.6;
-        ">
+        <div id="legend-source-note" style="padding: 8px 10px; border-radius: 4px; border: 1px solid #e2e8f0; background: #f8fafc; line-height: 1.6;">
           Lade Quelleninformation…
         </div>
       </div>
