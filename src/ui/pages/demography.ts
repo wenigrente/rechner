@@ -1,5 +1,4 @@
 import * as d3 from 'd3';
-import i18next from '../../i18n/i18n';
 import { fetchResource } from '../../core/resources';
 
 type DataSource = 'original' | 'reconstructed';
@@ -212,7 +211,6 @@ function renderStatistics(container: HTMLElement, data: DemographyData[]): void 
   const totalPopulation = totalMales + totalFemales;
   const malePercent = ((totalMales / totalPopulation) * 100).toFixed(1);
   const femalePercent = ((totalFemales / totalPopulation) * 100).toFixed(1);
-  const ratio = (totalMales / totalFemales).toFixed(3);
 
   const origCount = data.filter(d => d.source === 'original').length;
   const reconCount = data.length - origCount;
@@ -339,7 +337,6 @@ export async function render(container: HTMLElement): Promise<void> {
         <div style="text-align: center; color: #999; padding: 40px;">Diagramm wird geladen…</div>
       </div>
 
-      <!-- Legend below chart — color swatches left, source explanation right -->
       <div style="padding: 12px 15px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 12px; color: #555; margin-top: 4px; display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: start;">
         <div style="white-space: nowrap;">
           <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
