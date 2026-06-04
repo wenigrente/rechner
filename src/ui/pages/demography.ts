@@ -15,9 +15,9 @@ function parseSource(raw: string): DataSource {
 
 // Color pairs [male, female] per source type
 const COLORS: Record<DataSource, { male: string; female: string }> = {
-  original:      { male: '#3b82f6', female: '#ec4899' }, // saturated blue / pink
-  reconstructed: { male: '#93c5fd', female: '#f9a8d4' }, // light tint blue / pink
-  projection:    { male: '#a78bfa', female: '#fbbf24' }, // violet / amber
+  original:      { male: '#3b82f6', female: '#ce0a79' }, // saturated blue / pink
+  reconstructed: { male: '#93c5fd', female: '#fe49ef' }, // light tint blue / pink
+  projection:    { male: '#b7abfb', female: '#f57b85' }, // violet / amber
 };
 
 const BAR_OPACITY = 0.85;
